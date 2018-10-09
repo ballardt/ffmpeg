@@ -1043,7 +1043,7 @@ static av_cold int nvenc_setup_hevc_config(AVCodecContext *avctx)
         || vui->videoFullRangeFlag != 0);
 
     hevc->sliceMode = 3;
-    hevc->sliceModeData = 1;
+    hevc->sliceModeData = 3;
 
     hevc->disableSPSPPS = (avctx->flags & AV_CODEC_FLAG_GLOBAL_HEADER) ? 1 : 0;
     hevc->repeatSPSPPS  = (avctx->flags & AV_CODEC_FLAG_GLOBAL_HEADER) ? 0 : 1;
@@ -2128,6 +2128,10 @@ int ff_nvenc_send_frame(AVCodecContext *avctx, const AVFrame *frame)
     res = nvenc_push_context(avctx);
     if (res < 0)
         return res;
+
+	// Print the pic_params' hevcPicParams info
+	// TODO remove
+	//av_log(avctx, AV_LOG_INFO, "sliceMode: %d\n", pic_params.codecPicParams.hevcPicParams.sliceMode);
 
     nv_status = p_nvenc->nvEncEncodePicture(ctx->nvencoder, &pic_params);
     av_free(sei_data);
