@@ -1527,6 +1527,8 @@ typedef struct AVCodecContext {
      * information on struct for av_log
      * - set by avcodec_alloc_context3
      */
+	// Used for sliceModeData when sliceMode == 3
+	int num_slices;
     const AVClass *av_class;
     int log_level_offset;
 
