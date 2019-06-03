@@ -691,6 +691,7 @@ static void write_packet(OutputFile *of, AVPacket *pkt, OutputStream *ost, int u
     AVFormatContext *s = of->ctx;
     AVStream *st = ost->st;
     int ret;
+    fprintf(stderr,"[CG] entering write_packet in %s %d\n", __FILE__, __LINE__);
 
     /*
      * Audio encoders may split the packets --  #frames in != #packets out.
@@ -880,10 +881,16 @@ static void output_packet(OutputFile *of, AVPacket *pkt,
             } else if (eof)
                 goto finish;
             else
+            {
+                fprintf(stderr,"[CG] calling write_packet in %s %d\n", __FILE__, __LINE__+1);
                 write_packet(of, pkt, ost, 0);
+            }
         }
     } else if (!eof)
+    {
+        fprintf(stderr,"[CG] calling write_packet in %s %d\n", __FILE__, __LINE__+1);
         write_packet(of, pkt, ost, 0);
+    }
 
 finish:
     if (ret < 0 && ret != AVERROR_EOF) {
@@ -3009,6 +3016,7 @@ static int check_init_output_file(OutputFile *of, int file_index)
         while (av_fifo_size(ost->muxing_queue)) {
             AVPacket pkt;
             av_fifo_generic_read(ost->muxing_queue, &pkt, sizeof(pkt), NULL);
+            fprintf(stderr,"[CG] calling write_packet in %s %d\n", __FILE__, __LINE__+1);
             write_packet(of, &pkt, ost, 1);
         }
     }

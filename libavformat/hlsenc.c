@@ -236,6 +236,7 @@ static int mkdir_p(const char *path) {
     char *pos = temp;
     char tmp_ch = '\0';
 
+fprintf(stderr,"[CG] entering mkdir_p\n");
     if (!path || !temp) {
         return -1;
     }
@@ -268,6 +269,7 @@ static int hlsenc_io_open(AVFormatContext *s, AVIOContext **pb, char *filename,
     HLSContext *hls = s->priv_data;
     int http_base_proto = filename ? ff_is_http_proto(filename) : 0;
     int err = AVERROR_MUXER_NOT_FOUND;
+fprintf(stderr,"[CG] entering hlsenc_io_open(%s) in %s %d\n", filename, __FILE__, __LINE__);
     if (!*pb || !http_base_proto || !hls->http_persistent) {
         err = s->io_open(s, pb, filename, AVIO_FLAG_WRITE, options);
 #if CONFIG_HTTP_PROTOCOL
@@ -283,6 +285,7 @@ static int hlsenc_io_open(AVFormatContext *s, AVIOContext **pb, char *filename,
 static void hlsenc_io_close(AVFormatContext *s, AVIOContext **pb, char *filename) {
     HLSContext *hls = s->priv_data;
     int http_base_proto = filename ? ff_is_http_proto(filename) : 0;
+fprintf(stderr,"[CG] entering hlsenc_io_close in %s %d\n", __FILE__, __LINE__);
     if (!http_base_proto || !hls->http_persistent || hls->key_info_file || hls->encrypt) {
         ff_format_io_close(s, pb);
 #if CONFIG_HTTP_PROTOCOL
@@ -298,6 +301,7 @@ static void hlsenc_io_close(AVFormatContext *s, AVIOContext **pb, char *filename
 static void set_http_options(AVFormatContext *s, AVDictionary **options, HLSContext *c)
 {
     int http_base_proto = ff_is_http_proto(s->url);
+fprintf(stderr,"[CG] entering set_http_options in %s %d\n", __FILE__, __LINE__);
 
     if (c->method) {
         av_dict_set(options, "method", c->method, 0);
@@ -316,6 +320,8 @@ static void set_http_options(AVFormatContext *s, AVDictionary **options, HLSCont
 static void write_codec_attr(AVStream *st, VariantStream *vs) {
     int codec_strlen = strlen(vs->codec_attr);
     char attr[32];
+fprintf(stderr,"[CG] entering write_codec_attr\n");
+
 
     if (st->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE)
         return;
@@ -453,6 +459,7 @@ static int hls_delete_old_segments(AVFormatContext *s, HLSContext *hls,
     AVIOContext *out = NULL;
     const char *proto = NULL;
 
+fprintf(stderr,"[CG] entering hls_delete_old_segments\n");
     segment = vs->segments;
     while (segment) {
         playlist_duration += segment->duration;
@@ -713,6 +720,7 @@ static int hls_mux_init(AVFormatContext *s, VariantStream *vs)
     int byterange_mode = (hls->flags & HLS_SINGLE_FILE) || (hls->max_seg_size > 0);
     int i, ret;
 
+fprintf(stderr,"[CG] entering hls_mux_init\n");
     ret = avformat_alloc_output_context2(&vs->avf, vs->oformat, NULL, NULL);
     if (ret < 0)
         return ret;
@@ -832,6 +840,7 @@ static int sls_flags_filename_process(struct AVFormatContext *s, HLSContext *hls
                                       VariantStream *vs, HLSSegment *en,
                                       double duration, int64_t pos, int64_t size)
 {
+fprintf(stderr,"[CG] entering sls_flags_filename_process\n");
     if ((hls->flags & (HLS_SECOND_LEVEL_SEGMENT_SIZE | HLS_SECOND_LEVEL_SEGMENT_DURATION)) &&
         strlen(vs->current_segment_final_filename_fmt)) {
         char * new_url = av_strdup(vs->current_segment_final_filename_fmt);
@@ -978,6 +987,7 @@ static int hls_append_segment(struct AVFormatContext *s, HLSContext *hls,
     int byterange_mode = (hls->flags & HLS_SINGLE_FILE) || (hls->max_seg_size > 0);
     int ret;
 
+fprintf(stderr,"[CG] entering hls_append_segment\n");
     if (!en)
         return AVERROR(ENOMEM);
 
@@ -1067,6 +1077,7 @@ static int parse_playlist(AVFormatContext *s, const char *url, VariantStream *vs
     const char *ptr;
     const char *end;
 
+fprintf(stderr,"[CG] entering parse_playlist\n");
     if ((ret = ffio_open_whitelist(&in, url, AVIO_FLAG_READ,
                                    &s->interrupt_callback, NULL,
                                    s->protocol_whitelist, s->protocol_blacklist)) < 0)
@@ -1134,6 +1145,7 @@ static int parse_playlist(AVFormatContext *s, const char *url, VariantStream *vs
                 is_segment = 0;
                 new_start_pos = avio_tell(vs->avf->pb);
                 vs->size = new_start_pos - vs->start_pos;
+fprintf(stderr,"[CG] calling hls_append_segment in line %d\n", __LINE__+1);
                 ret = hls_append_segment(s, hls, vs, vs->duration, vs->start_pos, vs->size);
                 if (ret < 0)
                     goto fail;
@@ -2154,6 +2166,7 @@ static int hls_write_packet(AVFormatContext *s, AVPacket *pkt)
     AVDictionary *options = NULL;
     char *old_filename = NULL;
 
+fprintf(stderr,"[CG] entering hls_write_packet\n");
     for (i = 0; i < hls->nb_varstreams; i++) {
         vs = &hls->var_streams[i];
         for (j = 0; j < vs->nb_streams; j++) {
@@ -2312,6 +2325,7 @@ static int hls_write_packet(AVFormatContext *s, AVPacket *pkt)
         }
 
         if (vs->start_pos || hls->segment_type != SEGMENT_TYPE_FMP4) {
+fprintf(stderr,"[CG] calling hls_append_segment in line %d\n", __LINE__+1);
             ret = hls_append_segment(s, hls, vs, vs->duration, vs->start_pos, vs->size);
             vs->end_pts = pkt->pts;
             vs->duration = 0;
@@ -2377,6 +2391,7 @@ static int hls_write_trailer(struct AVFormatContext *s)
     int ret = 0;
     VariantStream *vs = NULL;
 
+fprintf(stderr,"[CG] entering hls_write_trailer in  %s %d\n", __FILE__, __LINE__);
     for (i = 0; i < hls->nb_varstreams; i++) {
         vs = &hls->var_streams[i];
 
@@ -2405,6 +2420,7 @@ static int hls_write_trailer(struct AVFormatContext *s)
         }
 
 failed:
+fprintf(stderr,"[CG] calling av_write_trailer in %s %d\n", __FILE__, __LINE__+1);
         av_write_trailer(oc);
         if (oc->pb) {
             if (hls->segment_type != SEGMENT_TYPE_FMP4) {
@@ -2427,6 +2443,7 @@ failed:
             }
 
             /* after av_write_trailer, then duration + 1 duration per packet */
+fprintf(stderr,"[CG] calling hls_append_segment in %s %d\n", __FILE__, __LINE__+1);
             hls_append_segment(s, hls, vs, vs->duration + vs->dpp, vs->start_pos, vs->size);
         }
 
