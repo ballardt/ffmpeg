@@ -236,7 +236,7 @@ static int mkdir_p(const char *path) {
     char *pos = temp;
     char tmp_ch = '\0';
 
-fprintf(stderr,"[CG] entering mkdir_p\n");
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (!path || !temp) {
         return -1;
     }
@@ -320,7 +320,7 @@ fprintf(stderr,"[CG] entering set_http_options in %s %d\n", __FILE__, __LINE__);
 static void write_codec_attr(AVStream *st, VariantStream *vs) {
     int codec_strlen = strlen(vs->codec_attr);
     char attr[32];
-fprintf(stderr,"[CG] entering write_codec_attr\n");
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
 
 
     if (st->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE)
@@ -459,7 +459,7 @@ static int hls_delete_old_segments(AVFormatContext *s, HLSContext *hls,
     AVIOContext *out = NULL;
     const char *proto = NULL;
 
-fprintf(stderr,"[CG] entering hls_delete_old_segments\n");
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     segment = vs->segments;
     while (segment) {
         playlist_duration += segment->duration;
@@ -720,15 +720,22 @@ static int hls_mux_init(AVFormatContext *s, VariantStream *vs)
     int byterange_mode = (hls->flags & HLS_SINGLE_FILE) || (hls->max_seg_size > 0);
     int i, ret;
 
-fprintf(stderr,"[CG] entering hls_mux_init\n");
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+fprintf(stderr,"[CG]   in %s calling avformat_alloc_output_context2 in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     ret = avformat_alloc_output_context2(&vs->avf, vs->oformat, NULL, NULL);
     if (ret < 0)
+    {
+fprintf(stderr,"[CG]   in %s leaving (error) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         return ret;
+    }
     oc = vs->avf;
 
     oc->url                = av_strdup("");
     if (!oc->url)
+    {
+fprintf(stderr,"[CG]   in %s leaving (error) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         return AVERROR(ENOMEM);
+    }
 
     oc->oformat            = vs->oformat;
     oc->interrupt_callback = s->interrupt_callback;
@@ -739,9 +746,13 @@ fprintf(stderr,"[CG] entering hls_mux_init\n");
     av_dict_copy(&oc->metadata, s->metadata, 0);
 
     if(vs->vtt_oformat) {
+fprintf(stderr,"[CG]   in %s calling avformat_alloc_output_context2 in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         ret = avformat_alloc_output_context2(&vs->vtt_avf, vs->vtt_oformat, NULL, NULL);
         if (ret < 0)
+        {
+fprintf(stderr,"[CG]   in %s leaving (error) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
             return ret;
+        }
         vtt_oc          = vs->vtt_avf;
         vtt_oc->oformat = vs->vtt_oformat;
         av_dict_copy(&vtt_oc->metadata, s->metadata, 0);
@@ -779,6 +790,7 @@ fprintf(stderr,"[CG] entering hls_mux_init\n");
     if (hls->segment_type == SEGMENT_TYPE_FMP4) {
         if (hls->max_seg_size > 0) {
             av_log(s, AV_LOG_WARNING, "Multi-file byterange mode is currently unsupported in the HLS muxer.\n");
+fprintf(stderr,"[CG]   in %s leaving (error) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
             return AVERROR_PATCHWELCOME;
         }
 
@@ -787,7 +799,10 @@ fprintf(stderr,"[CG] entering hls_mux_init\n");
         vs->fmp4_init_mode = !byterange_mode;
         set_http_options(s, &options, hls);
         if ((ret = avio_open_dyn_buf(&oc->pb)) < 0)
+        {
+fprintf(stderr,"[CG]   in %s leaving (error) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
             return ret;
+        }
 
         if (byterange_mode) {
             ret = hlsenc_io_open(s, &vs->out, vs->basename, &options);
@@ -796,6 +811,7 @@ fprintf(stderr,"[CG] entering hls_mux_init\n");
         }
         av_dict_free(&options);
         if (ret < 0) {
+fprintf(stderr,"[CG]   in %s leaving (error) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
             av_log(s, AV_LOG_ERROR, "Failed to open segment '%s'\n", vs->fmp4_init_filename);
             return ret;
         }
@@ -803,6 +819,7 @@ fprintf(stderr,"[CG] entering hls_mux_init\n");
         if (hls->format_options_str) {
             ret = av_dict_parse_string(&hls->format_options, hls->format_options_str, "=", ":", 0);
             if (ret < 0) {
+fprintf(stderr,"[CG]   in %s leaving (error) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
                 av_log(s, AV_LOG_ERROR, "Could not parse format options list '%s'\n",
                        hls->format_options_str);
                 return ret;
@@ -812,17 +829,23 @@ fprintf(stderr,"[CG] entering hls_mux_init\n");
         av_dict_copy(&options, hls->format_options, 0);
         av_dict_set(&options, "fflags", "-autobsf", 0);
         av_dict_set(&options, "movflags", "frag_custom+dash+delay_moov", 0);
+fprintf(stderr,"[CG]   in %s calling avformat_init_output in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         ret = avformat_init_output(oc, &options);
         if (ret < 0)
+        {
+fprintf(stderr,"[CG]   in %s leaving (error) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
             return ret;
+        }
         if (av_dict_count(options)) {
             av_log(s, AV_LOG_ERROR, "Some of the provided format options in '%s' are not recognized\n", hls->format_options_str);
             av_dict_free(&options);
+fprintf(stderr,"[CG]   in %s leaving (error) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
             return AVERROR(EINVAL);
         }
         avio_flush(oc->pb);
         av_dict_free(&options);
     }
+fprintf(stderr,"[CG]   in %s leaving (ok) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     return 0;
 }
 
@@ -840,7 +863,7 @@ static int sls_flags_filename_process(struct AVFormatContext *s, HLSContext *hls
                                       VariantStream *vs, HLSSegment *en,
                                       double duration, int64_t pos, int64_t size)
 {
-fprintf(stderr,"[CG] entering sls_flags_filename_process\n");
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if ((hls->flags & (HLS_SECOND_LEVEL_SEGMENT_SIZE | HLS_SECOND_LEVEL_SEGMENT_DURATION)) &&
         strlen(vs->current_segment_final_filename_fmt)) {
         char * new_url = av_strdup(vs->current_segment_final_filename_fmt);
@@ -987,7 +1010,7 @@ static int hls_append_segment(struct AVFormatContext *s, HLSContext *hls,
     int byterange_mode = (hls->flags & HLS_SINGLE_FILE) || (hls->max_seg_size > 0);
     int ret;
 
-fprintf(stderr,"[CG] entering hls_append_segment\n");
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (!en)
         return AVERROR(ENOMEM);
 
@@ -1077,7 +1100,7 @@ static int parse_playlist(AVFormatContext *s, const char *url, VariantStream *vs
     const char *ptr;
     const char *end;
 
-fprintf(stderr,"[CG] entering parse_playlist\n");
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if ((ret = ffio_open_whitelist(&in, url, AVIO_FLAG_READ,
                                    &s->interrupt_callback, NULL,
                                    s->protocol_whitelist, s->protocol_blacklist)) < 0)
@@ -2166,7 +2189,7 @@ static int hls_write_packet(AVFormatContext *s, AVPacket *pkt)
     AVDictionary *options = NULL;
     char *old_filename = NULL;
 
-fprintf(stderr,"[CG] entering hls_write_packet\n");
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     for (i = 0; i < hls->nb_varstreams; i++) {
         vs = &hls->var_streams[i];
         for (j = 0; j < vs->nb_streams; j++) {
@@ -2391,7 +2414,7 @@ static int hls_write_trailer(struct AVFormatContext *s)
     int ret = 0;
     VariantStream *vs = NULL;
 
-fprintf(stderr,"[CG] entering hls_write_trailer in  %s %d\n", __FILE__, __LINE__);
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     for (i = 0; i < hls->nb_varstreams; i++) {
         vs = &hls->var_streams[i];
 
@@ -2510,6 +2533,8 @@ static int hls_init(AVFormatContext *s)
     char *p = NULL;
     int vtt_basename_size = 0;
     int fmp4_init_filename_len = strlen(hls->fmp4_init_filename) + 1;
+
+fprintf(stderr,"[CG] entering %s in %s %d (init filename %s)\n", __FUNCTION__, __FILE__, __LINE__, hls->fmp4_init_filename);
 
     ret = update_variant_stream_info(s);
     if (ret < 0) {
@@ -2787,6 +2812,7 @@ static int hls_init(AVFormatContext *s)
             }
         }
 
+fprintf(stderr,"[CG]   in %s calling hls_mux_init in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         if ((ret = hls_mux_init(s, vs)) < 0)
             goto fail;
 

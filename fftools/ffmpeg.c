@@ -637,6 +637,7 @@ void remove_avoptions(AVDictionary **a, AVDictionary *b)
 {
     AVDictionaryEntry *t = NULL;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     while ((t = av_dict_get(b, "", t, AV_DICT_IGNORE_SUFFIX))) {
         av_dict_set(a, t->key, NULL, AV_DICT_MATCH_CASE);
     }
@@ -680,6 +681,7 @@ static void update_benchmark(const char *fmt, ...)
 static void close_all_output_streams(OutputStream *ost, OSTFinished this_stream, OSTFinished others)
 {
     int i;
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     for (i = 0; i < nb_output_streams; i++) {
         OutputStream *ost2 = output_streams[i];
         ost2->finished |= ost == ost2 ? this_stream : others;
@@ -691,7 +693,7 @@ static void write_packet(OutputFile *of, AVPacket *pkt, OutputStream *ost, int u
     AVFormatContext *s = of->ctx;
     AVStream *st = ost->st;
     int ret;
-    fprintf(stderr,"[CG] entering write_packet in %s %d\n", __FILE__, __LINE__);
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
 
     /*
      * Audio encoders may split the packets --  #frames in != #packets out.
@@ -826,6 +828,7 @@ static void close_output_stream(OutputStream *ost)
 {
     OutputFile *of = output_files[ost->file_index];
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     ost->finished |= ENCODER_FINISHED;
     if (of->shortest) {
         int64_t end = av_rescale_q(ost->sync_opts - ost->first_pts, ost->enc_ctx->time_base, AV_TIME_BASE_Q);
@@ -888,7 +891,7 @@ static void output_packet(OutputFile *of, AVPacket *pkt,
         }
     } else if (!eof)
     {
-        fprintf(stderr,"[CG] calling write_packet in %s %d\n", __FILE__, __LINE__+1);
+// fprintf(stderr,"[CG] calling write_packet in %s %d\n", __FILE__, __LINE__+1);
         write_packet(of, pkt, ost, 0);
     }
 
@@ -1074,6 +1077,7 @@ static void do_video_out(OutputFile *of,
     InputStream *ist = NULL;
     AVFilterContext *filter = ost->filter->filter;
 
+// fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (ost->source_index >= 0)
         ist = input_streams[ost->source_index];
 
@@ -1417,6 +1421,7 @@ static void finish_output_stream(OutputStream *ost)
     OutputFile *of = output_files[ost->file_index];
     int i;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     ost->finished = ENCODER_FINISHED | MUXER_FINISHED;
 
     if (of->shortest) {
@@ -1870,6 +1875,7 @@ static void flush_encoders(void)
 {
     int i, ret;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     for (i = 0; i < nb_output_streams; i++) {
         OutputStream   *ost = output_streams[i];
         AVCodecContext *enc = ost->enc_ctx;
@@ -1990,6 +1996,7 @@ static int check_output_constraints(InputStream *ist, OutputStream *ost)
     OutputFile *of = output_files[ost->file_index];
     int ist_index  = input_files[ist->file_index]->ist_index + ist->st->index;
 
+// fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (ost->source_index != ist_index)
         return 0;
 
@@ -2809,6 +2816,7 @@ static enum AVPixelFormat get_format(AVCodecContext *s, const enum AVPixelFormat
     const enum AVPixelFormat *p;
     int ret;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     for (p = pix_fmts; *p != AV_PIX_FMT_NONE; p++) {
         const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(*p);
         const AVCodecHWConfig  *config = NULL;
@@ -2904,6 +2912,7 @@ static int init_input_stream(int ist_index, char *error, int error_len)
     int ret;
     InputStream *ist = input_streams[ist_index];
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (ist->decoding_needed) {
         AVCodec *codec = ist->dec;
         if (!codec) {
@@ -2966,8 +2975,13 @@ static int init_input_stream(int ist_index, char *error, int error_len)
 
 static InputStream *get_input_stream(OutputStream *ost)
 {
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (ost->source_index >= 0)
+    {
+fprintf(stderr,"[CG]   in %s leaving (with input stream) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         return input_streams[ost->source_index];
+    }
+fprintf(stderr,"[CG]   in %s leaving (without input stream) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     return NULL;
 }
 
@@ -2981,25 +2995,38 @@ static int check_init_output_file(OutputFile *of, int file_index)
 {
     int ret, i;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+fprintf(stderr,"[CG]   in %s: has AVFormatContext? %s in %s %d\n", __FUNCTION__, (of->ctx?"yes":"no"), __FILE__, __LINE__);
+fprintf(stderr,"[CG]   in %s: has AVDictionary? %s in %s %d\n", __FUNCTION__, (of->opts?"yes":"no"), __FILE__, __LINE__);
+fprintf(stderr,"[CG]   in %s: first stream: %d in %s %d\n", __FUNCTION__, of->ost_index, __FILE__, __LINE__);
+fprintf(stderr,"[CG]   in %s: header written? %s in %s %d\n", __FUNCTION__, (of->header_written?"yes":"no"), __FILE__, __LINE__);
+
     for (i = 0; i < of->ctx->nb_streams; i++) {
         OutputStream *ost = output_streams[of->ost_index + i];
         if (!ost->initialized)
+        {
+fprintf(stderr,"[CG]   in %s leaving (stream %d not initialized) in %s %d\n", __FUNCTION__, i, __FILE__, __LINE__);
             return 0;
+        }
     }
+fprintf(stderr,"[CG]   in %s: %d streams in %s %d\n", __FUNCTION__, of->ctx->nb_streams, __FILE__, __LINE__);
 
     of->ctx->interrupt_callback = int_cb;
 
+fprintf(stderr,"[CG]   in %s: calling avformat_write_header in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     ret = avformat_write_header(of->ctx, &of->opts);
     if (ret < 0) {
         av_log(NULL, AV_LOG_ERROR,
                "Could not write header for output file #%d "
                "(incorrect codec parameters ?): %s\n",
                file_index, av_err2str(ret));
+fprintf(stderr,"[CG]   in %s leaving (failed to write header) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         return ret;
     }
     //assert_avoptions(of->opts);
     of->header_written = 1;
 
+fprintf(stderr,"[CG]   in %s calling av_dump_format in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     av_dump_format(of->ctx, file_index, of->ctx->url, 1);
 
     if (sdp_filename || want_sdp)
@@ -3016,11 +3043,12 @@ static int check_init_output_file(OutputFile *of, int file_index)
         while (av_fifo_size(ost->muxing_queue)) {
             AVPacket pkt;
             av_fifo_generic_read(ost->muxing_queue, &pkt, sizeof(pkt), NULL);
-            fprintf(stderr,"[CG] calling write_packet in %s %d\n", __FILE__, __LINE__+1);
+            fprintf(stderr,"[CG]   in %s calling write_packet in %s %d\n", __FUNCTION__, __FILE__, __LINE__+1);
             write_packet(of, &pkt, ost, 1);
         }
     }
 
+fprintf(stderr,"[CG]   in %s leaving (ok) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     return 0;
 }
 
@@ -3030,33 +3058,48 @@ static int init_output_bsfs(OutputStream *ost)
     int i, ret;
 
     if (!ost->nb_bitstream_filters)
+    {
         return 0;
+    }
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__); // ignore above since nothing happens
+fprintf(stderr,"[CG] %d bit stream filters %s in %s %d\n", ost->nb_bitstream_filters, __FUNCTION__, __FILE__, __LINE__);
     for (i = 0; i < ost->nb_bitstream_filters; i++) {
         ctx = ost->bsf_ctx[i];
 
+fprintf(stderr,"[CG] calling avcodec_parameters_copy in %s in %s %d\n",  __FUNCTION__, __FILE__, __LINE__);
         ret = avcodec_parameters_copy(ctx->par_in,
                                       i ? ost->bsf_ctx[i - 1]->par_out : ost->st->codecpar);
         if (ret < 0)
+        {
+fprintf(stderr,"[CG] leaving %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
             return ret;
+        }
 
         ctx->time_base_in = i ? ost->bsf_ctx[i - 1]->time_base_out : ost->st->time_base;
 
+fprintf(stderr,"[CG] calling av_bsf_init in %s in %s %d\n",  __FUNCTION__, __FILE__, __LINE__);
         ret = av_bsf_init(ctx);
         if (ret < 0) {
             av_log(NULL, AV_LOG_ERROR, "Error initializing bitstream filter: %s\n",
                    ost->bsf_ctx[i]->filter->name);
+fprintf(stderr,"[CG] leaving %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
             return ret;
         }
     }
 
     ctx = ost->bsf_ctx[ost->nb_bitstream_filters - 1];
+fprintf(stderr,"[CG] calling avcodec_parameters_copy in %s in %s %d\n",  __FUNCTION__, __FILE__, __LINE__);
     ret = avcodec_parameters_copy(ost->st->codecpar, ctx->par_out);
     if (ret < 0)
+    {
+fprintf(stderr,"[CG] leaving %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         return ret;
+    }
 
     ost->st->time_base = ctx->time_base_out;
 
+fprintf(stderr,"[CG] leaving %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     return 0;
 }
 
@@ -3177,6 +3220,7 @@ static void set_encoder_id(OutputFile *of, OutputStream *ost)
     int format_flags = 0;
     int codec_flags = ost->enc_ctx->flags;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (av_dict_get(ost->st->metadata, "encoder",  NULL, 0))
         return;
 
@@ -3278,6 +3322,7 @@ static void init_encoder_time_base(OutputStream *ost, AVRational default_time_ba
     AVCodecContext *enc_ctx = ost->enc_ctx;
     AVFormatContext *oc;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (ost->enc_timebase.num > 0) {
         enc_ctx->time_base = ost->enc_timebase;
         return;
@@ -3304,6 +3349,7 @@ static int init_output_stream_encode(OutputStream *ost)
     AVFormatContext *oc = output_files[ost->file_index]->ctx;
     int j, ret;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     set_encoder_id(output_files[ost->file_index], ost);
 
     // Muxers use AV_PKT_DATA_DISPLAYMATRIX to signal rotation. On the other
@@ -3371,6 +3417,7 @@ static int init_output_stream_encode(OutputStream *ost)
         break;
 
     case AVMEDIA_TYPE_VIDEO:
+fprintf(stderr,"[CG]   in %s: calling init_encoder_time_base in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         init_encoder_time_base(ost, av_inv_q(ost->frame_rate));
 
         if (!(enc_ctx->time_base.num && enc_ctx->time_base.den))
@@ -3381,9 +3428,12 @@ static int init_output_stream_encode(OutputStream *ost)
                                        "Please consider specifying a lower framerate, a different muxer or -vsync 2\n");
         }
         for (j = 0; j < ost->forced_kf_count; j++)
+        {
+fprintf(stderr,"[CG]   in %s d calling av_rescale_q in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
             ost->forced_kf_pts[j] = av_rescale_q(ost->forced_kf_pts[j],
                                                  AV_TIME_BASE_Q,
                                                  enc_ctx->time_base);
+        }
 
         enc_ctx->width  = av_buffersink_get_w(ost->filter->filter);
         enc_ctx->height = av_buffersink_get_h(ost->filter->filter);
@@ -3391,7 +3441,9 @@ static int init_output_stream_encode(OutputStream *ost)
             ost->frame_aspect_ratio.num ? // overridden by the -aspect cli option
             av_mul_q(ost->frame_aspect_ratio, (AVRational){ enc_ctx->height, enc_ctx->width }) :
             av_buffersink_get_sample_aspect_ratio(ost->filter->filter);
+fprintf(stderr,"[CG]   in %s: w %d h %d aspect %d/%d in %s %d\n", __FUNCTION__, enc_ctx->width, enc_ctx->height, enc_ctx->sample_aspect_ratio.num, enc_ctx->sample_aspect_ratio.den, __FILE__, __LINE__);
 
+fprintf(stderr,"[CG]   in %s calling av_buffersink_get_format in %s %d\n", __FUNCTION__, __FILE__, __LINE__ );
         enc_ctx->pix_fmt = av_buffersink_get_format(ost->filter->filter);
         if (dec_ctx)
             enc_ctx->bits_per_raw_sample = FFMIN(dec_ctx->bits_per_raw_sample,
@@ -3434,6 +3486,7 @@ static int init_output_stream_encode(OutputStream *ost)
                 parse_forced_key_frames(ost->forced_keyframes, ost, ost->enc_ctx);
             }
         }
+fprintf(stderr,"[CG]   in %s end of AVMEDIA_TYPE_VIDEO case in %s %d\n", __FUNCTION__, __FILE__, __LINE__ );
         break;
     case AVMEDIA_TYPE_SUBTITLE:
         enc_ctx->time_base = AV_TIME_BASE_Q;
@@ -3451,6 +3504,7 @@ static int init_output_stream_encode(OutputStream *ost)
 
     ost->mux_timebase = enc_ctx->time_base;
 
+fprintf(stderr,"[CG]   in %s leaving(ok) in %s %d\n", __FUNCTION__, __FILE__, __LINE__ );
     return 0;
 }
 
@@ -3458,15 +3512,21 @@ static int init_output_stream(OutputStream *ost, char *error, int error_len)
 {
     int ret = 0;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (ost->encoding_needed) {
         AVCodec      *codec = ost->enc;
         AVCodecContext *dec = NULL;
         InputStream *ist;
 
+fprintf(stderr,"[CG]   in %s: calling init_output_stream_encode in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         ret = init_output_stream_encode(ost);
         if (ret < 0)
+        {
             return ret;
+        }
+fprintf(stderr,"[CG]   in %s: leaving(error) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
 
+fprintf(stderr,"[CG]   in %s: calling get_input_stream in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         if ((ist = get_input_stream(ost)))
             dec = ist->dec_ctx;
         if (dec && dec->subtitle_header) {
@@ -3477,6 +3537,7 @@ static int init_output_stream(OutputStream *ost, char *error, int error_len)
             memcpy(ost->enc_ctx->subtitle_header, dec->subtitle_header, dec->subtitle_header_size);
             ost->enc_ctx->subtitle_header_size = dec->subtitle_header_size;
         }
+fprintf(stderr,"[CG]   in %s: calling av_dict_get in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         if (!av_dict_get(ost->encoder_opts, "threads", NULL, 0))
             av_dict_set(&ost->encoder_opts, "threads", "auto", 0);
         if (ost->enc->type == AVMEDIA_TYPE_AUDIO &&
@@ -3487,11 +3548,14 @@ static int init_output_stream(OutputStream *ost, char *error, int error_len)
 
         if (ost->filter && av_buffersink_get_hw_frames_ctx(ost->filter->filter) &&
             ((AVHWFramesContext*)av_buffersink_get_hw_frames_ctx(ost->filter->filter)->data)->format ==
-            av_buffersink_get_format(ost->filter->filter)) {
+            av_buffersink_get_format(ost->filter->filter))
+        {
+fprintf(stderr,"[CG]   in %s: hw_frames_ctx is a buffer reference in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
             ost->enc_ctx->hw_frames_ctx = av_buffer_ref(av_buffersink_get_hw_frames_ctx(ost->filter->filter));
             if (!ost->enc_ctx->hw_frames_ctx)
                 return AVERROR(ENOMEM);
         } else {
+fprintf(stderr,"[CG]   in %s: initialize hardware for encode in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
             ret = hw_device_setup_for_encode(ost);
             if (ret < 0) {
                 snprintf(error, error_len, "Device setup failed for "
@@ -3518,6 +3582,7 @@ static int init_output_stream(OutputStream *ost, char *error, int error_len)
             }
         }
 
+fprintf(stderr,"[CG]   in %s: calling avcodec_open2 in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         if ((ret = avcodec_open2(ost->enc_ctx, codec, &ost->encoder_opts)) < 0) {
             if (ret == AVERROR_EXPERIMENTAL)
                 abort_codec_experimental(codec, 1);
@@ -3531,12 +3596,14 @@ static int init_output_stream(OutputStream *ost, char *error, int error_len)
             !(ost->enc->capabilities & AV_CODEC_CAP_VARIABLE_FRAME_SIZE))
             av_buffersink_set_frame_size(ost->filter->filter,
                                             ost->enc_ctx->frame_size);
+fprintf(stderr,"[CG]   in %s: checking ost->encoder_opts in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         assert_avoptions(ost->encoder_opts);
         if (ost->enc_ctx->bit_rate && ost->enc_ctx->bit_rate < 1000 &&
             ost->enc_ctx->codec_id != AV_CODEC_ID_CODEC2 /* don't complain about 700 bit/s modes */)
             av_log(NULL, AV_LOG_WARNING, "The bitrate parameter is set too low."
                                          " It takes bits/s as argument, not kbits/s\n");
 
+fprintf(stderr,"[CG]   in %s: calling avcodec_parameters_from_context in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         ret = avcodec_parameters_from_context(ost->st->codecpar, ost->enc_ctx);
         if (ret < 0) {
             av_log(NULL, AV_LOG_FATAL,
@@ -3557,6 +3624,7 @@ static int init_output_stream(OutputStream *ost, char *error, int error_len)
                 const AVPacketSideData *sd_src = &ost->enc_ctx->coded_side_data[i];
                 uint8_t *dst_data;
 
+fprintf(stderr,"[CG]   in %s: calling av_stream_new_side_data in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
                 dst_data = av_stream_new_side_data(ost->st, sd_src->type, sd_src->size);
                 if (!dst_data)
                     return AVERROR(ENOMEM);
@@ -3575,7 +3643,9 @@ static int init_output_stream(OutputStream *ost, char *error, int error_len)
             int i;
             for (i = 0; i < ist->st->nb_side_data; i++) {
                 AVPacketSideData *sd = &ist->st->side_data[i];
-                uint8_t *dst = av_stream_new_side_data(ost->st, sd->type, sd->size);
+                uint8_t *dst;
+fprintf(stderr,"[CG]   in %s: calling av_stream_new_side_data in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+                dst = av_stream_new_side_data(ost->st, sd->type, sd->size);
                 if (!dst)
                     return AVERROR(ENOMEM);
                 memcpy(dst, sd->data, sd->size);
@@ -3586,14 +3656,21 @@ static int init_output_stream(OutputStream *ost, char *error, int error_len)
 
         // copy timebase while removing common factors
         if (ost->st->time_base.num <= 0 || ost->st->time_base.den <= 0)
+        {
+fprintf(stderr,"[CG]   in %s: calling av_add_q in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
             ost->st->time_base = av_add_q(ost->enc_ctx->time_base, (AVRational){0, 1});
+        }
 
         // copy estimated duration as a hint to the muxer
         if (ost->st->duration <= 0 && ist && ist->st->duration > 0)
+        {
+fprintf(stderr,"[CG]   in %s: calling av_rescale_q in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
             ost->st->duration = av_rescale_q(ist->st->duration, ist->st->time_base, ost->st->time_base);
+        }
 
         ost->st->codec->codec= ost->enc_ctx->codec;
     } else if (ost->stream_copy) {
+fprintf(stderr,"[CG]   in %s: calling init_output_stream_streamcopy in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         ret = init_output_stream_streamcopy(ost);
         if (ret < 0)
             return ret;
@@ -3628,6 +3705,7 @@ static int init_output_stream(OutputStream *ost, char *error, int error_len)
         };
         const AVClass *pclass = &class;
 
+fprintf(stderr,"[CG]   in %s: calling av_opt_eval_flags in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         ret = av_opt_eval_flags(&pclass, &opts[0], ost->disposition, &ost->st->disposition);
         if (ret < 0)
             return ret;
@@ -3636,16 +3714,19 @@ static int init_output_stream(OutputStream *ost, char *error, int error_len)
     /* initialize bitstream filters for the output stream
      * needs to be done here, because the codec id for streamcopy is not
      * known until now */
+// fprintf(stderr,"[CG] calling init_output_bsfs in %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__); // ignore today since filters are empty
     ret = init_output_bsfs(ost);
     if (ret < 0)
         return ret;
 
     ost->initialized = 1;
 
+fprintf(stderr,"[CG] calling check_init_output_file in %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     ret = check_init_output_file(output_files[ost->file_index], ost->file_index);
     if (ret < 0)
         return ret;
 
+fprintf(stderr,"[CG]   in %s: leaving(ok) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     return ret;
 }
 
@@ -3654,6 +3735,7 @@ static void report_new_stream(int input_index, AVPacket *pkt)
     InputFile *file = input_files[input_index];
     AVStream *st = file->ctx->streams[pkt->stream_index];
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (pkt->stream_index < file->nb_streams_warn)
         return;
     av_log(file->ctx, AV_LOG_WARNING,
@@ -3673,6 +3755,7 @@ static int transcode_init(void)
     char error[1024] = {0};
 
     for (i = 0; i < nb_filtergraphs; i++) {
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         FilterGraph *fg = filtergraphs[i];
         for (j = 0; j < fg->nb_outputs; j++) {
             OutputFilter *ofilter = fg->outputs[j];
@@ -4265,6 +4348,7 @@ static int process_input(int file_index)
     int64_t duration;
     int64_t pkt_dts;
 
+// fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     is  = ifile->ctx;
     ret = get_input_packet(ifile, &pkt);
 
@@ -4657,6 +4741,7 @@ static int transcode(void)
     int64_t timer_start;
     int64_t total_packets_written = 0;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     ret = transcode_init();
     if (ret < 0)
         goto fail;
@@ -4866,6 +4951,7 @@ int main(int argc, char **argv)
     show_banner(argc, argv, options);
 
     /* parse options and open all input/output files */
+fprintf(stderr,"[CG] calling ffmpeg_parse_options() in %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     ret = ffmpeg_parse_options(argc, argv);
     if (ret < 0)
         exit_program(1);
@@ -4893,8 +4979,10 @@ int main(int argc, char **argv)
     }
 
     current_time = ti = get_benchmark_time_stamps();
+fprintf(stderr,"[CG] before transcode() in %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (transcode() < 0)
         exit_program(1);
+fprintf(stderr,"[CG] after transcode() in %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (do_benchmark) {
         int64_t utime, stime, rtime;
         current_time = get_benchmark_time_stamps();

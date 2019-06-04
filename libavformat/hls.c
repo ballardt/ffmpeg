@@ -1783,6 +1783,7 @@ static int hls_read_header(AVFormatContext *s)
     int ret = 0, i;
     int highest_cur_seq_no = 0;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     c->ctx                = s;
     c->interrupt_callback = &s->interrupt_callback;
     c->strict_std_compliance = s->strict_std_compliance;
@@ -1869,6 +1870,7 @@ static int hls_read_header(AVFormatContext *s)
         struct playlist *pls = c->playlists[i];
         AVInputFormat *in_fmt = NULL;
 
+fprintf(stderr,"[CG] calling avformat_alloc_context in %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         if (!(pls->ctx = avformat_alloc_context())) {
             ret = AVERROR(ENOMEM);
             goto fail;

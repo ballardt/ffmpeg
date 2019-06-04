@@ -144,6 +144,7 @@ static void avformat_get_context_defaults(AVFormatContext *s)
 AVFormatContext *avformat_alloc_context(void)
 {
     AVFormatContext *ic;
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     ic = av_malloc(sizeof(AVFormatContext));
     if (!ic) return ic;
     avformat_get_context_defaults(ic);

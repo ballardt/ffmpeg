@@ -250,6 +250,7 @@ static void prepare_app_arguments(int *argc_ptr, char ***argv_ptr)
     wchar_t **argv_w;
     int i, buffsize = 0, offset = 0;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (win32_argv_utf8) {
         *argc_ptr = win32_argc;
         *argv_ptr = win32_argv_utf8;
@@ -301,6 +302,7 @@ static int write_option(void *optctx, const OptionDef *po, const char *opt,
                 (uint8_t *)optctx + po->u.off : po->u.dst_ptr;
     int *dstcount;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (po->flags & OPT_SPEC) {
         SpecifierOpt **so = dst;
         char *p = strchr(opt, ':');
@@ -353,6 +355,7 @@ int parse_option(void *optctx, const char *opt, const char *arg,
     const OptionDef *po;
     int ret;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     po = find_option(options, opt);
     if (!po->name && opt[0] == 'n' && opt[1] == 'o') {
         /* handle 'no' bool option */
@@ -386,6 +389,7 @@ void parse_options(void *optctx, int argc, char **argv, const OptionDef *options
     const char *opt;
     int optindex, handleoptions = 1, ret;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     /* perform system-dependent conversions for arguments list */
     prepare_app_arguments(&argc, &argv);
 
@@ -415,11 +419,13 @@ int parse_optgroup(void *optctx, OptionGroup *g)
 {
     int i, ret;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     av_log(NULL, AV_LOG_DEBUG, "Parsing a group of options: %s %s.\n",
            g->group_def->name, g->arg);
 
     for (i = 0; i < g->nb_opts; i++) {
         Option *o = &g->opts[i];
+fprintf(stderr,"[CG] option %s : %s\n", (o->key?o->key:"<none>"), (o->val?o->val:"<none>") );
 
         if (g->group_def->flags &&
             !(g->group_def->flags & o->opt->flags)) {
@@ -559,6 +565,7 @@ int opt_default(void *optctx, const char *opt, const char *arg)
     const AVClass *swr_class = swr_get_class();
 #endif
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (!strcmp(opt, "debug") || !strcmp(opt, "fdebug"))
         av_log_set_level(AV_LOG_DEBUG);
 
@@ -757,6 +764,7 @@ int split_commandline(OptionParseContext *octx, int argc, char *argv[],
     int optindex = 1;
     int dashdash = -2;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     /* perform system-dependent conversions for arguments list */
     prepare_app_arguments(&argc, &argv);
 
@@ -768,6 +776,7 @@ int split_commandline(OptionParseContext *octx, int argc, char *argv[],
         const OptionDef *po;
         int ret;
 
+fprintf(stderr,"[CG] reading option %s in %s in %s %d\n", opt, __FUNCTION__, __FILE__, __LINE__);
         av_log(NULL, AV_LOG_DEBUG, "Reading option '%s' ...", opt);
 
         if (opt[0] == '-' && opt[1] == '-' && !opt[2]) {
@@ -777,6 +786,7 @@ int split_commandline(OptionParseContext *octx, int argc, char *argv[],
         /* unnamed group separators, e.g. output filename */
         if (opt[0] != '-' || !opt[1] || dashdash+1 == optindex) {
             finish_group(octx, 0, opt);
+fprintf(stderr,"[CG] matched as %s in %s in %s %d\n", groups[0].name, __FUNCTION__, __FILE__, __LINE__);
             av_log(NULL, AV_LOG_DEBUG, " matched as %s.\n", groups[0].name);
             continue;
         }
@@ -795,6 +805,7 @@ do {                                                                           \
         if ((ret = match_group_separator(groups, nb_groups, opt)) >= 0) {
             GET_ARG(arg);
             finish_group(octx, ret, arg);
+fprintf(stderr,"[CG] matched as %s with arg %s in %s in %s %d\n", groups[0].name, arg, __FUNCTION__, __FILE__, __LINE__);
             av_log(NULL, AV_LOG_DEBUG, " matched as %s with argument '%s'.\n",
                    groups[ret].name, arg);
             continue;
@@ -813,6 +824,7 @@ do {                                                                           \
             }
 
             add_opt(octx, po, opt, arg);
+fprintf(stderr,"[CG] matched as %s with arg %s in %s in %s %d\n", po->name, arg, __FUNCTION__, __FILE__, __LINE__);
             av_log(NULL, AV_LOG_DEBUG, " matched as option '%s' (%s) with "
                    "argument '%s'.\n", po->name, po->help, arg);
             continue;
@@ -822,6 +834,7 @@ do {                                                                           \
         if (argv[optindex]) {
             ret = opt_default(NULL, opt, argv[optindex]);
             if (ret >= 0) {
+fprintf(stderr,"[CG] matched as %s with arg %s in %s in %s %d\n", opt, argv[optindex], __FUNCTION__, __FILE__, __LINE__);
                 av_log(NULL, AV_LOG_DEBUG, " matched as AVOption '%s' with "
                        "argument '%s'.\n", opt, argv[optindex]);
                 optindex++;
@@ -838,6 +851,7 @@ do {                                                                           \
             (po = find_option(options, opt + 2)) &&
             po->name && po->flags & OPT_BOOL) {
             add_opt(octx, po, opt, "0");
+fprintf(stderr,"[CG] matched as %s in %s in %s %d\n", po->name, __FUNCTION__, __FILE__, __LINE__);
             av_log(NULL, AV_LOG_DEBUG, " matched as option '%s' (%s) with "
                    "argument 0.\n", po->name, po->help);
             continue;

@@ -542,6 +542,7 @@ int avformat_open_input(AVFormatContext **ps, const char *filename,
     AVDictionary *tmp = NULL;
     ID3v2ExtraMeta *id3v2_extra_meta = NULL;
 
+fprintf(stderr,"[CG] calling avformat_alloc_context in %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (!s && !(s = avformat_alloc_context()))
         return AVERROR(ENOMEM);
     if (!s->av_class) {

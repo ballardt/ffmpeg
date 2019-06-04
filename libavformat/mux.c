@@ -148,8 +148,15 @@ enum AVChromaLocation ff_choose_chroma_location(AVFormatContext *s, AVStream *st
 int avformat_alloc_output_context2(AVFormatContext **avctx, AVOutputFormat *oformat,
                                    const char *format, const char *filename)
 {
-    AVFormatContext *s = avformat_alloc_context();
+    AVFormatContext *s;
     int ret = 0;
+
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+fprintf(stderr,"[CG]   in %s: AVOutputFormat known? %s in %s %d\n", __FUNCTION__, (oformat?"yes":"no"), __FILE__, __LINE__);
+fprintf(stderr,"[CG]   in %s: format string: %s in %s %d\n", __FUNCTION__, (format?format:"<unknown>"), __FILE__, __LINE__);
+fprintf(stderr,"[CG]   in %s: filename: %s in %s %d\n", __FUNCTION__, (filename?filename:"<unknown>"), __FILE__, __LINE__);
+fprintf(stderr,"[CG]   in %s calling avformat_alloc_context in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+    s = avformat_alloc_context();
 
     *avctx = NULL;
     if (!s)
@@ -164,6 +171,7 @@ int avformat_alloc_output_context2(AVFormatContext **avctx, AVOutputFormat *ofor
                 goto error;
             }
         } else {
+fprintf(stderr,"[CG]   in %s: guessing format from filename: %s in %s %d\n", __FUNCTION__, (filename?filename:"<unknown>"), __FILE__, __LINE__);
             oformat = av_guess_format(NULL, filename, NULL);
             if (!oformat) {
                 ret = AVERROR(EINVAL);
@@ -171,16 +179,20 @@ int avformat_alloc_output_context2(AVFormatContext **avctx, AVOutputFormat *ofor
                        filename);
                 goto error;
             }
+fprintf(stderr,"[CG]   in %s: AVOutputFormat known? %s in %s %d\n", __FUNCTION__, (oformat?"yes":"no"), __FILE__, __LINE__);
         }
     }
 
+fprintf(stderr,"[CG]   in %s adding oformat to new context in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     s->oformat = oformat;
     if (s->oformat->priv_data_size > 0) {
+fprintf(stderr,"[CG]   in %s oformat has private data in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         s->priv_data = av_mallocz(s->oformat->priv_data_size);
         if (!s->priv_data)
             goto nomem;
         if (s->oformat->priv_class) {
             *(const AVClass**)s->priv_data= s->oformat->priv_class;
+fprintf(stderr,"[CG]   in %s set default options in private data in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
             av_opt_set_defaults(s->priv_data);
         }
     } else
@@ -189,6 +201,7 @@ int avformat_alloc_output_context2(AVFormatContext **avctx, AVOutputFormat *ofor
     if (filename) {
 #if FF_API_FORMAT_FILENAME
 FF_DISABLE_DEPRECATION_WARNINGS
+fprintf(stderr,"[CG]   in %s adding filename %s to new context in %s %d\n", __FUNCTION__, filename, __FILE__, __LINE__);
         av_strlcpy(s->filename, filename, sizeof(s->filename));
 FF_ENABLE_DEPRECATION_WARNINGS
 #endif
@@ -197,12 +210,14 @@ FF_ENABLE_DEPRECATION_WARNINGS
 
     }
     *avctx = s;
+fprintf(stderr,"[CG]   in %s leaving (OK) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     return 0;
 nomem:
     av_log(s, AV_LOG_ERROR, "Out of memory\n");
     ret = AVERROR(ENOMEM);
 error:
     avformat_free_context(s);
+fprintf(stderr,"[CG]   in %s leaving (error) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     return ret;
 }
 
@@ -250,9 +265,12 @@ static int init_muxer(AVFormatContext *s, AVDictionary **options)
     const AVCodecDescriptor *desc;
     AVDictionaryEntry *e;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+
     if (options)
         av_dict_copy(&tmp, *options, 0);
 
+fprintf(stderr,"[CG]   in %s calling av_opt_set_dict in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if ((ret = av_opt_set_dict(s, &tmp)) < 0)
         goto fail;
     if (s->priv_data && s->oformat->priv_class && *(const AVClass**)s->priv_data==s->oformat->priv_class &&
@@ -269,6 +287,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
         ret = AVERROR(ENOMEM);
         goto fail;
     }
+fprintf(stderr,"[CG]   in %s fixing URL \"%s\" in %s %d\n", __FUNCTION__, s->url, __FILE__, __LINE__);
 
 #if FF_API_LAVF_AVCTX
 FF_DISABLE_DEPRECATION_WARNINGS
@@ -283,6 +302,7 @@ FF_DISABLE_DEPRECATION_WARNINGS
 FF_ENABLE_DEPRECATION_WARNINGS
 #endif
 
+fprintf(stderr,"[CG]   in %s num streams %d in %s %d\n", __FUNCTION__, s->nb_streams, __FILE__, __LINE__);
     // some sanity checks
     if (s->nb_streams == 0 && !(of->flags & AVFMT_NOSTREAMS)) {
         av_log(s, AV_LOG_ERROR, "No streams to mux were specified\n");
@@ -318,6 +338,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
 
         switch (par->codec_type) {
         case AVMEDIA_TYPE_AUDIO:
+fprintf(stderr,"[CG]   in %s codec %d type audio in %s %d\n", __FUNCTION__, i, __FILE__, __LINE__);
             if (par->sample_rate <= 0) {
                 av_log(s, AV_LOG_ERROR, "sample rate not set\n");
                 ret = AVERROR(EINVAL);
@@ -328,6 +349,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
                                    av_get_bits_per_sample(par->codec_id) >> 3;
             break;
         case AVMEDIA_TYPE_VIDEO:
+fprintf(stderr,"[CG]   in %s codec %d type video in %s %d\n", __FUNCTION__, i, __FILE__, __LINE__);
             if ((par->width <= 0 || par->height <= 0) &&
                 !(of->flags & AVFMT_NODIMENSIONS)) {
                 av_log(s, AV_LOG_ERROR, "dimensions not set\n");
@@ -356,6 +378,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
         desc = avcodec_descriptor_get(par->codec_id);
         if (desc && desc->props & AV_CODEC_PROP_REORDER)
             st->internal->reorder = 1;
+fprintf(stderr,"[CG]   in %s codec desc %s in %s %d\n", __FUNCTION__, desc->name, __FILE__, __LINE__);
 
         if (of->codec_tag) {
             if (   par->codec_tag
@@ -415,6 +438,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
     }
 
     if (s->oformat->init) {
+fprintf(stderr,"[CG]   in %s calling oformat->init() in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         if ((ret = s->oformat->init(s)) < 0) {
             if (s->oformat->deinit)
                 s->oformat->deinit(s);
@@ -489,6 +513,8 @@ int avformat_init_output(AVFormatContext *s, AVDictionary **options)
 {
     int ret = 0;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+fprintf(stderr,"[CG]   in %s calling init_muxer in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if ((ret = init_muxer(s, options)) < 0)
         return ret;
 
@@ -511,9 +537,13 @@ int avformat_write_header(AVFormatContext *s, AVDictionary **options)
     int already_initialized = s->internal->initialized;
     int streams_already_initialized = s->internal->streams_initialized;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (!already_initialized)
+    {
+fprintf(stderr,"[CG]   in %s calling avformat_init_output in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         if ((ret = avformat_init_output(s, options)) < 0)
             return ret;
+    }
 
     if (!(s->oformat->flags & AVFMT_NOFILE) && s->pb)
         avio_write_marker(s->pb, AV_NOPTS_VALUE, AVIO_DATA_MARKER_HEADER);

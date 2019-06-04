@@ -465,6 +465,7 @@ static av_cold int X264_init(AVCodecContext *avctx)
     AVCPBProperties *cpb_props;
     int sw,sh;
 
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (avctx->global_quality > 0)
         av_log(avctx, AV_LOG_WARNING, "-qscale is ignored, -crf is recommended.\n");
 

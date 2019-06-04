@@ -2349,6 +2349,7 @@ static int mov_finalize_stsd_codec(MOVContext *c, AVIOContext *pb,
     switch (st->codecpar->codec_id) {
 #if CONFIG_DV_DEMUXER
     case AV_CODEC_ID_DVAUDIO:
+fprintf(stderr,"[CG] calling avformat_alloc_context in %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         c->dv_fctx = avformat_alloc_context();
         if (!c->dv_fctx) {
             av_log(c->fc, AV_LOG_ERROR, "dv demux context alloc error\n");
