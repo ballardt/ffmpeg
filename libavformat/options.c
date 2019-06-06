@@ -144,7 +144,7 @@ static void avformat_get_context_defaults(AVFormatContext *s)
 AVFormatContext *avformat_alloc_context(void)
 {
     AVFormatContext *ic;
-fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_ENTER
     ic = av_malloc(sizeof(AVFormatContext));
     if (!ic) return ic;
     avformat_get_context_defaults(ic);
@@ -158,6 +158,7 @@ fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     ic->internal->raw_packet_buffer_remaining_size = RAW_PACKET_BUFFER_SIZE;
     ic->internal->shortest_end = AV_NOPTS_VALUE;
 
+CG_LEAVE("ok")
     return ic;
 }
 

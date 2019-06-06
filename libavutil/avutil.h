@@ -159,6 +159,26 @@
  * @}
  */
 
+extern int CG_DEPTH;
+#define CG_PRINT_DEPTH if(1) { \
+                             fprintf(stderr, "[CG]" ); \
+                             int depth = CG_DEPTH; \
+                             while( depth-- ) fprintf(stderr, " "); \
+                         }
+
+#define CG_ENTER CG_DEPTH++; \
+                 CG_PRINT_DEPTH \
+                 fprintf(stderr, "entering %s: ", __FUNCTION__ ); \
+                 fprintf(stderr, " %s:%d\n", __FILE__, __LINE__ );
+
+#define CG_LEAVE( err ) CG_PRINT_DEPTH \
+                        fprintf(stderr, "leaving %s (%s): %s:%d\n", __FUNCTION__, err, __FILE__, __LINE__ ); \
+                        CG_DEPTH--;
+
+#define CG_IN( ... ) CG_PRINT_DEPTH \
+                     fprintf(stderr, "in %s:", __FUNCTION__ ); \
+                     fprintf(stderr, __VA_ARGS__); \
+                     fprintf(stderr, " %s:%d\n", __FILE__, __LINE__ );
 
 /**
  * @addtogroup lavu_ver

@@ -541,22 +541,22 @@ int attribute_align_arg avcodec_open2(AVCodecContext *avctx, const AVCodec *code
     AVDictionary *tmp = NULL;
     const AVPixFmtDescriptor *pixdesc;
 
-fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_ENTER
     if (avcodec_is_open(avctx))
     {
-fprintf(stderr,"[CG]   in %s: leaving(error) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_LEAVE("error")
         return 0;
     }
 
     if ((!codec && !avctx->codec)) {
         av_log(avctx, AV_LOG_ERROR, "No codec provided to avcodec_open2()\n");
-fprintf(stderr,"[CG]   in %s: leaving(error) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_LEAVE("error")
         return AVERROR(EINVAL);
     }
     if ((codec && avctx->codec && codec != avctx->codec)) {
         av_log(avctx, AV_LOG_ERROR, "This AVCodecContext was allocated for %s, "
                                     "but %s passed to avcodec_open2()\n", avctx->codec->name, codec->name);
-fprintf(stderr,"[CG]   in %s: leaving(error) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_LEAVE("error")
         return AVERROR(EINVAL);
     }
     if (!codec)
@@ -564,7 +564,7 @@ fprintf(stderr,"[CG]   in %s: leaving(error) in %s %d\n", __FUNCTION__, __FILE__
 
     if (avctx->extradata_size < 0 || avctx->extradata_size >= FF_MAX_EXTRADATA_SIZE)
     {
-fprintf(stderr,"[CG]   in %s: leaving(error) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_LEAVE("error")
         return AVERROR(EINVAL);
     }
 
@@ -653,7 +653,7 @@ fprintf(stderr,"[CG]   in %s: leaving(error) in %s %d\n", __FUNCTION__, __FILE__
     if (!(avctx->coded_width && avctx->coded_height && avctx->width && avctx->height &&
           (avctx->codec_id == AV_CODEC_ID_H264 || avctx->codec_id == AV_CODEC_ID_VP6F || avctx->codec_id == AV_CODEC_ID_DXV)))
     {
-fprintf(stderr,"[CG]   in %s: calling ff_set_dimensions in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_IN("calling ff_set_dimensions")
         if (avctx->coded_width && avctx->coded_height)
             ret = ff_set_dimensions(avctx, avctx->coded_width, avctx->coded_height);
         else if (avctx->width && avctx->height)
@@ -663,7 +663,7 @@ fprintf(stderr,"[CG]   in %s: calling ff_set_dimensions in %s %d\n", __FUNCTION_
     }
     else
     {
-fprintf(stderr,"[CG]   in %s: not resetting dimensions in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_IN("not resetting dimensions")
     }
 
     if ((avctx->coded_width || avctx->coded_height || avctx->width || avctx->height)
@@ -1027,6 +1027,7 @@ end:
         *options = tmp;
     }
 
+CG_LEAVE("?")
     return ret;
 free_and_end:
     if (avctx->codec &&

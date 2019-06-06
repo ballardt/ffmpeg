@@ -65,6 +65,8 @@
 #  define pthread_mutex_unlock(a) do{}while(0)
 #endif
 
+int CG_DEPTH = 0;
+
 typedef struct InputStream {
     AVStream *st;
 

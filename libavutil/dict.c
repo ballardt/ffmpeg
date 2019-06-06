@@ -27,6 +27,8 @@
 #include "time_internal.h"
 #include "bprint.h"
 
+// int CG_DEPTH = 0;
+
 struct AVDictionary {
     int count;
     AVDictionaryEntry *elems;
@@ -218,12 +220,21 @@ int av_dict_copy(AVDictionary **dst, const AVDictionary *src, int flags)
 {
     AVDictionaryEntry *t = NULL;
 
+CG_ENTER
     while ((t = av_dict_get(src, "", t, AV_DICT_IGNORE_SUFFIX))) {
         int ret = av_dict_set(dst, t->key, t->value, flags);
         if (ret < 0)
+        {
+CG_LEAVE("error")
             return ret;
+        }
+        else
+        {
+CG_IN("setting key %s to val %s", t->key, t->value)
+        }
     }
 
+CG_LEAVE("ok")
     return 0;
 }
 

@@ -1285,11 +1285,11 @@ static int choose_encoder(OptionsContext *o, AVFormatContext *s, OutputStream *o
     enum AVMediaType type = ost->st->codecpar->codec_type;
     char *codec_name = NULL;
 
-fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_ENTER
     if (type == AVMEDIA_TYPE_VIDEO || type == AVMEDIA_TYPE_AUDIO || type == AVMEDIA_TYPE_SUBTITLE) {
         MATCH_PER_STREAM_OPT(codec_names, str, codec_name, s, ost->st);
         if (!codec_name) {
-fprintf(stderr,"[CG]   in %s calling av_guess_codec in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_IN("calling av_guess_codec")
             ost->st->codecpar->codec_id = av_guess_codec(s->oformat, NULL, s->url,
                                                          NULL, ost->st->codecpar->codec_type);
             ost->enc = avcodec_find_encoder(ost->st->codecpar->codec_id);
@@ -1302,27 +1302,29 @@ fprintf(stderr,"[CG]   in %s calling av_guess_codec in %s %d\n", __FUNCTION__, _
                 return AVERROR_ENCODER_NOT_FOUND;
             }
         } else if (!strcmp(codec_name, "copy")) {
-fprintf(stderr,"[CG]   in %s setting code to copy in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_IN("setting code to copy")
             ost->stream_copy = 1;
         } else {
-fprintf(stderr,"[CG]   in %s calling find_codec_or_die in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_IN("calling find_codec_or_die")
             ost->enc = find_codec_or_die(codec_name, ost->st->codecpar->codec_type, 1);
             ost->st->codecpar->codec_id = ost->enc->id;
         }
         ost->encoding_needed = !ost->stream_copy;
     } else {
-fprintf(stderr,"[CG]   in %s no encoding for other media in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_IN("no encoding for other media")
         /* no encoding supported for other media types */
         ost->stream_copy     = 1;
         ost->encoding_needed = 0;
     }
 
+CG_LEAVE("ok")
     return 0;
 }
 
 static OutputStream *new_output_stream(OptionsContext *o, AVFormatContext *oc, enum AVMediaType type, int source_index)
 {
     OutputStream *ost;
+CG_ENTER
     AVStream *st = avformat_new_stream(oc, NULL);
     int idx      = oc->nb_streams - 1, ret = 0;
     const char *bsfs = NULL, *time_base = NULL;
@@ -1330,7 +1332,6 @@ static OutputStream *new_output_stream(OptionsContext *o, AVFormatContext *oc, e
     double qscale = -1;
     int i;
 
-fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     if (!st) {
         av_log(NULL, AV_LOG_FATAL, "Could not alloc stream.\n");
         exit_program(1);
@@ -1371,6 +1372,7 @@ fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     }
 
     if (ost->enc) {
+CG_IN("We have an output stream encoder")
         AVIOContext *s = NULL;
         char *buf = NULL, *arg = NULL, *preset = NULL;
 
@@ -1401,15 +1403,18 @@ fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
             exit_program(1);
         }
     } else {
+CG_IN("We do not have an output stream encoder")
         ost->encoder_opts = filter_codec_opts(o->g->codec_opts, AV_CODEC_ID_NONE, oc, st, NULL);
     }
 
 
+CG_IN("bitexact: %d", o->bitexact);
     if (o->bitexact)
         ost->enc_ctx->flags |= AV_CODEC_FLAG_BITEXACT;
 
     MATCH_PER_STREAM_OPT(time_bases, str, time_base, oc, st);
     if (time_base) {
+CG_IN("we have time bases")
         AVRational q;
         if (av_parse_ratio(&q, time_base, INT_MAX, 0, NULL) < 0 ||
             q.num <= 0 || q.den <= 0) {
@@ -1421,6 +1426,7 @@ fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
 
     MATCH_PER_STREAM_OPT(enc_time_bases, str, time_base, oc, st);
     if (time_base) {
+CG_IN("we have end time bases")
         AVRational q;
         if (av_parse_ratio(&q, time_base, INT_MAX, 0, NULL) < 0 ||
             q.den <= 0) {
@@ -1432,6 +1438,7 @@ fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
 
     ost->max_frames = INT64_MAX;
     MATCH_PER_STREAM_OPT(max_frames, i64, ost->max_frames, oc, st);
+CG_IN("we have max frames %d", ost->max_frames)
     for (i = 0; i<o->nb_max_frames; i++) {
         char *p = o->max_frames[i].specifier;
         if (!*p && type != AVMEDIA_TYPE_VIDEO) {
@@ -1442,8 +1449,10 @@ fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
 
     ost->copy_prior_start = -1;
     MATCH_PER_STREAM_OPT(copy_prior_start, i, ost->copy_prior_start, oc ,st);
+CG_IN("we have a prior start %d", ost->copy_prior_start)
 
     MATCH_PER_STREAM_OPT(bitstream_filters, str, bsfs, oc, st);
+CG_IN("having bitstream filters? %s", ((bsfs&&*bsfs)?"yes":"no"))
     while (bsfs && *bsfs) {
         const AVBitStreamFilter *filter;
         char *bsf, *bsf_options_str, *bsf_name;
@@ -1455,6 +1464,7 @@ fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         if (!bsf_name)
             exit_program(1);
 
+CG_IN("checking bitstream filter %s", bsf_name)
         filter = av_bsf_get_by_name(bsf_name);
         if (!filter) {
             av_log(NULL, AV_LOG_FATAL, "Unknown bitstream filter %s\n", bsf_name);
@@ -1495,6 +1505,7 @@ fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     }
 
     MATCH_PER_STREAM_OPT(codec_tags, str, codec_tag, oc, st);
+CG_IN("having codec_tag? %s", (codec_tag?"yes":"no"))
     if (codec_tag) {
         uint32_t tag = strtol(codec_tag, &next, 0);
         if (*next)
@@ -1504,42 +1515,53 @@ fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     }
 
     MATCH_PER_STREAM_OPT(qscale, dbl, qscale, oc, st);
+CG_IN("having qscale>=0? %s", ((qscale >= 0)?"yes":"no"))
     if (qscale >= 0) {
         ost->enc_ctx->flags |= AV_CODEC_FLAG_QSCALE;
         ost->enc_ctx->global_quality = FF_QP2LAMBDA * qscale;
     }
 
     MATCH_PER_STREAM_OPT(disposition, str, ost->disposition, oc, st);
+CG_IN("having disposition? %s", (ost->disposition?"yes":"no"))
     ost->disposition = av_strdup(ost->disposition);
 
     ost->max_muxing_queue_size = 128;
     MATCH_PER_STREAM_OPT(max_muxing_queue_size, i, ost->max_muxing_queue_size, oc, st);
+CG_IN("max muxing queue size? %d", ost->max_muxing_queue_size);
     ost->max_muxing_queue_size *= sizeof(AVPacket);
 
     if (oc->oformat->flags & AVFMT_GLOBALHEADER)
+    {
+CG_IN("have flag AVFMT_GLOBALHEADER")
         ost->enc_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+    }
 
     av_dict_copy(&ost->sws_dict, o->g->sws_dict, 0);
 
     av_dict_copy(&ost->swr_opts, o->g->swr_opts, 0);
     if (ost->enc && av_get_exact_bits_per_sample(ost->enc->id) == 24)
+    {
+CG_IN("setting output_sample_bits")
         av_dict_set(&ost->swr_opts, "output_sample_bits", "24", 0);
+    }
 
     av_dict_copy(&ost->resample_opts, o->g->resample_opts, 0);
 
     ost->source_index = source_index;
+CG_IN("source index %d", source_index);
     if (source_index >= 0) {
         ost->sync_ist = input_streams[source_index];
         input_streams[source_index]->discard = 0;
         input_streams[source_index]->st->discard = input_streams[source_index]->user_set_discard;
     }
     ost->last_mux_dts = AV_NOPTS_VALUE;
+CG_IN("SO LONG")
 
     ost->muxing_queue = av_fifo_alloc(8 * sizeof(AVPacket));
     if (!ost->muxing_queue)
         exit_program(1);
 
-fprintf(stderr,"[CG]   in %s: leaving(ok) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_LEAVE("ok")
     return ost;
 }
 
@@ -1612,7 +1634,8 @@ static char *get_ost_filters(OptionsContext *o, AVFormatContext *oc,
 static void check_streamcopy_filters(OptionsContext *o, AVFormatContext *oc,
                                      const OutputStream *ost, enum AVMediaType type)
 {
-    if (ost->filters_script || ost->filters) {
+    if (ost->filters_script || ost->filters)
+    {
         av_log(NULL, AV_LOG_ERROR,
                "%s '%s' was defined for %s output stream %d:%d but codec copy was selected.\n"
                "Filtering and streamcopy cannot be used together.\n",
@@ -1630,8 +1653,8 @@ static OutputStream *new_video_stream(OptionsContext *o, AVFormatContext *oc, in
     AVCodecContext *video_enc;
     char *frame_rate = NULL, *frame_aspect_ratio = NULL;
 
-fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
-fprintf(stderr,"[CG]   in %s calling new_output_stream in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_ENTER
+CG_IN("calling new_output_stream")
     ost = new_output_stream(o, oc, AVMEDIA_TYPE_VIDEO, source_index);
     st  = ost->st;
     video_enc = ost->enc_ctx;
@@ -1656,9 +1679,12 @@ fprintf(stderr,"[CG]   in %s calling new_output_stream in %s %d\n", __FUNCTION__
     }
 
     MATCH_PER_STREAM_OPT(filter_scripts, str, ost->filters_script, oc, st);
+CG_IN("have filters_script? %s", (ost->filters_script?"yes":"no"))
     MATCH_PER_STREAM_OPT(filters,        str, ost->filters,        oc, st);
+CG_IN("have filters? %s", (ost->filters?"yes":"no"))
 
     if (!ost->stream_copy) {
+CG_IN("case not stream_copy")
         const char *p = NULL;
         char *frame_size = NULL;
         char *frame_pix_fmt = NULL;
@@ -1814,13 +1840,17 @@ fprintf(stderr,"[CG]   in %s calling new_output_stream in %s %d\n", __FUNCTION__
         if (!ost->avfilter)
             exit_program(1);
     } else {
+CG_IN("case stream_copy")
         MATCH_PER_STREAM_OPT(copy_initial_nonkeyframes, i, ost->copy_initial_nonkeyframes, oc ,st);
+CG_IN("copy initial non-keyframes? %s", (ost->copy_initial_nonkeyframes?"yes":"no"))
     }
 
     if (ost->stream_copy)
+    {
         check_streamcopy_filters(o, oc, ost, AVMEDIA_TYPE_VIDEO);
+    }
 
-fprintf(stderr,"[CG]   in %s: leaving(ok) in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_LEAVE("ok")
     return ost;
 }
 
@@ -2029,14 +2059,14 @@ static void init_output_filter(OutputFilter *ofilter, OptionsContext *o,
 {
     OutputStream *ost;
 
-fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_ENTER
     switch (ofilter->type) {
     case AVMEDIA_TYPE_VIDEO:
-fprintf(stderr,"[CG]   in %s: calling new_video_stream in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_IN("calling new_video_stream")
         ost = new_video_stream(o, oc, -1);
         break;
     case AVMEDIA_TYPE_AUDIO:
-fprintf(stderr,"[CG]   in %s: calling new_audio_stream in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_IN("calling new_audio_stream")
         ost = new_audio_stream(o, oc, -1);
         break;
     default:
@@ -2071,7 +2101,7 @@ fprintf(stderr,"[CG]   in %s: calling new_audio_stream in %s %d\n", __FUNCTION__
     }
 
     avfilter_inout_free(&ofilter->out_tmp);
-fprintf(stderr,"[CG] leaving(ok) %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_LEAVE("ok")
 }
 
 static int init_complex_filters(void)
@@ -2097,7 +2127,8 @@ static int open_output_file(OptionsContext *o, const char *filename)
     AVDictionaryEntry *e = NULL;
     int format_flags = 0;
 
-fprintf(stderr,"[CG] entering %s (filename=%s) in %s %d\n", __FUNCTION__, filename, __FILE__, __LINE__);
+CG_ENTER
+CG_IN("filename=%s", filename)
     if (o->stop_time != INT64_MAX && o->recording_time != INT64_MAX) {
         o->stop_time = INT64_MAX;
         av_log(NULL, AV_LOG_WARNING, "-t and -to cannot be used together; using -t.\n");
@@ -2124,12 +2155,13 @@ fprintf(stderr,"[CG] entering %s (filename=%s) in %s %d\n", __FUNCTION__, filena
     of->start_time     = o->start_time;
     of->limit_filesize = o->limit_filesize;
     of->shortest       = o->shortest;
+CG_IN("calling av_dict_copy")
     av_dict_copy(&of->opts, o->g->format_opts, 0);
 
     if (!strcmp(filename, "-"))
         filename = "pipe:";
 
-fprintf(stderr,"[CG]   in %s calling avformat_alloc_output_context2 in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_IN("calling avformat_alloc_output_context2")
     err = avformat_alloc_output_context2(&oc, NULL, o->format, filename);
     if (!oc) {
         print_error(filename, err);
@@ -2142,24 +2174,27 @@ fprintf(stderr,"[CG]   in %s calling avformat_alloc_output_context2 in %s %d\n",
 
     oc->interrupt_callback = int_cb;
 
-fprintf(stderr,"[CG]   in %s calling av_dict_get in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+// returns false
+// fprintf(stderr,"[CG]   in %s calling av_dict_get in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
     e = av_dict_get(o->g->format_opts, "fflags", NULL, 0);
     if (e) {
         const AVOption *o = av_opt_find(oc, "fflags", NULL, 0, 0);
-fprintf(stderr,"[CG]   in %s calling av_opt_eval_flags in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+// NOT CALLED
+// fprintf(stderr,"[CG]   in %s calling av_opt_eval_flags in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         av_opt_eval_flags(oc, o, e->value, &format_flags);
     }
     if (o->bitexact) {
-fprintf(stderr,"[CG]   in %s if bitexact in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+//  NOT CALLED
+// fprintf(stderr,"[CG]   in %s if bitexact in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         format_flags |= AVFMT_FLAG_BITEXACT;
         oc->flags    |= AVFMT_FLAG_BITEXACT;
     }
 
-fprintf(stderr,"[CG]   in %s num filtergraphs is %d in %s %d\n", __FUNCTION__, nb_filtergraphs, __FILE__, __LINE__);
+CG_IN("num filtergraphs is %d", nb_filtergraphs)
     /* create streams for all unlabeled output pads */
     for (i = 0; i < nb_filtergraphs; i++) {
         FilterGraph *fg = filtergraphs[i];
-fprintf(stderr,"[CG]   in %s num outputs is %d in filtergraph %d in %s %d\n", __FUNCTION__, fg->nb_outputs, i, __FILE__, __LINE__);
+CG_IN("num outputs is %d in filtergraph %d", fg->nb_outputs, i)
         for (j = 0; j < fg->nb_outputs; j++) {
             OutputFilter *ofilter = fg->outputs[j];
 
@@ -2171,20 +2206,27 @@ fprintf(stderr,"[CG]   in %s num outputs is %d in filtergraph %d in %s %d\n", __
             case AVMEDIA_TYPE_AUDIO:    o->audio_disable    = 1; break;
             case AVMEDIA_TYPE_SUBTITLE: o->subtitle_disable = 1; break;
             }
-fprintf(stderr,"[CG]   in %s calling init_output_filter in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_IN("calling init_output_filter")
             init_output_filter(ofilter, o, oc);
         }
     }
 
-    if (!o->nb_stream_maps) {
+CG_IN("num stream maps is %d", o->nb_stream_maps)
+    if (!o->nb_stream_maps)
+    {
+CG_ENTER
+CG_IN("branch without any stream maps")
         char *subtitle_codec_name = NULL;
         /* pick the "best" stream of each type */
 
         /* video: highest resolution */
         if (!o->video_disable && av_guess_codec(oc->oformat, NULL, filename, NULL, AVMEDIA_TYPE_VIDEO) != AV_CODEC_ID_NONE) {
             int area = 0, idx = -1;
+CG_IN("calling avformat_query_codec")
             int qcr = avformat_query_codec(oc->oformat, oc->oformat->video_codec, 0);
+CG_IN("number input streams %d", nb_input_streams)
             for (i = 0; i < nb_input_streams; i++) {
+CG_IN("handle input stream %d", i)
                 int new_area;
                 ist = input_streams[i];
                 new_area = ist->st->codecpar->width * ist->st->codecpar->height + 100000000*!!ist->st->codec_info_nb_frames;
@@ -2196,14 +2238,20 @@ fprintf(stderr,"[CG]   in %s calling init_output_filter in %s %d\n", __FUNCTION_
                         continue;
                     area = new_area;
                     idx = i;
+CG_IN("idx=%d", idx)
                 }
             }
             if (idx >= 0)
+            {
+CG_IN("calling new_video_stream with idx %d", idx)
                 new_video_stream(o, oc, idx);
+            }
         }
 
         /* audio: most channels */
-        if (!o->audio_disable && av_guess_codec(oc->oformat, NULL, filename, NULL, AVMEDIA_TYPE_AUDIO) != AV_CODEC_ID_NONE) {
+        if (!o->audio_disable && av_guess_codec(oc->oformat, NULL, filename, NULL, AVMEDIA_TYPE_AUDIO) != AV_CODEC_ID_NONE)
+        {
+CG_IN("in audio branch")
             int best_score = 0, idx = -1;
             for (i = 0; i < nb_input_streams; i++) {
                 int score;
@@ -2221,7 +2269,9 @@ fprintf(stderr,"[CG]   in %s calling init_output_filter in %s %d\n", __FUNCTION_
 
         /* subtitles: pick first */
         MATCH_PER_TYPE_OPT(codec_names, str, subtitle_codec_name, oc, "s");
-        if (!o->subtitle_disable && (avcodec_find_encoder(oc->oformat->subtitle_codec) || subtitle_codec_name)) {
+        if (!o->subtitle_disable && (avcodec_find_encoder(oc->oformat->subtitle_codec) || subtitle_codec_name))
+        {
+CG_IN("in subtitle branch")
             for (i = 0; i < nb_input_streams; i++)
                 if (input_streams[i]->st->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE) {
                     AVCodecDescriptor const *input_descriptor =
@@ -2248,15 +2298,23 @@ fprintf(stderr,"[CG]   in %s calling init_output_filter in %s %d\n", __FUNCTION_
                 }
         }
         /* Data only if codec id match */
-        if (!o->data_disable ) {
+        if (!o->data_disable )
+        {
+CG_IN("in \"not disabled\" branch")
             enum AVCodecID codec_id = av_guess_codec(oc->oformat, NULL, filename, NULL, AVMEDIA_TYPE_DATA);
             for (i = 0; codec_id != AV_CODEC_ID_NONE && i < nb_input_streams; i++) {
                 if (input_streams[i]->st->codecpar->codec_type == AVMEDIA_TYPE_DATA
                     && input_streams[i]->st->codecpar->codec_id == codec_id )
+                {
+CG_IN("calling new_data_stream")
                     new_data_stream(o, oc, i);
+                }
             }
         }
+CG_LEAVE("no-branch block")
     } else {
+CG_ENTER
+CG_IN("branch with stream maps")
         for (i = 0; i < o->nb_stream_maps; i++) {
             StreamMap *map = &o->stream_maps[i];
 
@@ -2328,10 +2386,14 @@ fprintf(stderr,"[CG]   in %s calling init_output_filter in %s %d\n", __FUNCTION_
                                                   + map->sync_stream_index];
             }
         }
+CG_LEAVE("branch block")
     }
 
+CG_IN("num attached files %d", o->nb_attachments)
     /* handle attached files */
-    for (i = 0; i < o->nb_attachments; i++) {
+    for (i = 0; i < o->nb_attachments; i++)
+    {
+CG_IN("handling attached file %d", i)
         AVIOContext *pb;
         uint8_t *attachment;
         const char *p;
@@ -2723,6 +2785,7 @@ fprintf(stderr,"[CG]   in %s calling init_output_filter in %s %d\n", __FUNCTION_
         }
     }
 
+CG_LEAVE("ok")
     return 0;
 }
 
@@ -3108,6 +3171,8 @@ static int opt_audio_qscale(void *optctx, const char *opt, const char *arg)
 
 static int opt_filter_complex(void *optctx, const char *opt, const char *arg)
 {
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+fprintf(stderr,"[CG]   in %s: growing filtergraps to %d with arg %s in %s %d\n", __FUNCTION__, nb_filtergraphs+1, arg, __FILE__, __LINE__);
     GROW_ARRAY(filtergraphs, nb_filtergraphs);
     if (!(filtergraphs[nb_filtergraphs - 1] = av_mallocz(sizeof(*filtergraphs[0]))))
         return AVERROR(ENOMEM);
@@ -3123,10 +3188,13 @@ static int opt_filter_complex(void *optctx, const char *opt, const char *arg)
 
 static int opt_filter_complex_script(void *optctx, const char *opt, const char *arg)
 {
-    uint8_t *graph_desc = read_file(arg);
+    uint8_t *graph_desc;
+fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+    graph_desc = read_file(arg);
     if (!graph_desc)
         return AVERROR(EINVAL);
 
+fprintf(stderr,"[CG]   in %s: growing filtergraps to %d with arg %s in %s %d\n", __FUNCTION__, nb_filtergraphs+1, graph_desc, __FILE__, __LINE__);
     GROW_ARRAY(filtergraphs, nb_filtergraphs);
     if (!(filtergraphs[nb_filtergraphs - 1] = av_mallocz(sizeof(*filtergraphs[0]))))
         return AVERROR(ENOMEM);
@@ -3231,20 +3299,21 @@ static int open_files(OptionGroupList *l, const char *inout,
                       int (*open_file)(OptionsContext*, const char*))
 {
     int i, ret;
-
+CG_ENTER
     for (i = 0; i < l->nb_groups; i++) {
         OptionGroup *g = &l->groups[i];
         OptionsContext o;
 
-fprintf(stderr,"[CG] calling init_options (group %d) in %s in %s %d\n", i, __FUNCTION__, __FILE__, __LINE__);
+CG_IN("calling init_options (group %d)", i)
         init_options(&o);
         o.g = g;
 
-fprintf(stderr,"[CG] calling parse_optgroup (group %d) in %s in %s %d\n", i, __FUNCTION__, __FILE__, __LINE__);
+CG_IN("calling parse_optgroup (group %d)", i )
         ret = parse_optgroup(&o, g);
         if (ret < 0) {
             av_log(NULL, AV_LOG_ERROR, "Error parsing options for %s file "
                    "%s.\n", inout, g->arg);
+CG_LEAVE("error")
             return ret;
         }
 
@@ -3254,11 +3323,13 @@ fprintf(stderr,"[CG] calling parse_optgroup (group %d) in %s in %s %d\n", i, __F
         if (ret < 0) {
             av_log(NULL, AV_LOG_ERROR, "Error opening %s file %s.\n",
                    inout, g->arg);
+CG_LEAVE("error")
             return ret;
         }
         av_log(NULL, AV_LOG_DEBUG, "Successfully opened the file.\n");
     }
 
+CG_LEAVE("ok")
     return 0;
 }
 
@@ -3270,7 +3341,7 @@ int ffmpeg_parse_options(int argc, char **argv)
 
     memset(&octx, 0, sizeof(octx));
 
-fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_ENTER
     /* split the commandline into an internal representation */
     ret = split_commandline(&octx, argc, argv, options, groups,
                             FF_ARRAY_ELEMS(groups));
@@ -3279,7 +3350,7 @@ fprintf(stderr,"[CG] entering %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
         goto fail;
     }
 
-fprintf(stderr,"[CG] calling parse_optgroup in %s in %s %d\n", __FUNCTION__, __FILE__, __LINE__);
+CG_IN("calling parse_optgroup")
     /* apply global options */
     ret = parse_optgroup(NULL, &octx.global_opts);
     if (ret < 0) {
@@ -3319,6 +3390,7 @@ fail:
         av_strerror(ret, error, sizeof(error));
         av_log(NULL, AV_LOG_FATAL, "%s\n", error);
     }
+CG_LEAVE("?")
     return ret;
 }
 
