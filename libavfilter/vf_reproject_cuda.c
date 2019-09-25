@@ -39,20 +39,21 @@
 #include "video.h"
 
 static const enum AVPixelFormat supported_formats[] = {
-    AV_PIX_FMT_YUV420P,
-    AV_PIX_FMT_NV12,
-    AV_PIX_FMT_YUV444P,
-    AV_PIX_FMT_P010,
-    AV_PIX_FMT_P016
+    AV_PIX_FMT_YUV420P
+    // AV_PIX_FMT_NV12,
+    // AV_PIX_FMT_YUV444P,
+    // AV_PIX_FMT_P010,
+    // AV_PIX_FMT_P016
 };
 
 #define DIV_UP(a, b) ( ((a) + (b) - 1) / (b) )
 #define ALIGN_UP(a, b) (((a) + (b) - 1) & ~((b) - 1))
 #define NUM_BUFFERS 2
-#define BLOCKX 32
-#define BLOCKY 16
 
-typedef struct CUDAScaleContext {
+typedef struct CUDAReprojectContext CUDAReprojectContext;
+
+struct CUDAReprojectContext
+{
     const AVClass *class;
     enum AVPixelFormat in_fmt;
     enum AVPixelFormat out_fmt;
@@ -66,7 +67,6 @@ typedef struct CUDAScaleContext {
     AVFrame     *frame;
 
     AVFrame *tmp_frame;
-    int passthrough;
 
     /**
      * Output sw format. AV_PIX_FMT_NONE for no conversion.
@@ -80,26 +80,15 @@ typedef struct CUDAScaleContext {
     CUevent     cu_event;
     CUmodule    cu_module;
     CUfunction  cu_func_uchar;
-    CUfunction  cu_func_uchar2;
-    CUfunction  cu_func_uchar4;
-    CUfunction  cu_func_ushort;
-    CUfunction  cu_func_ushort2;
-    CUfunction  cu_func_ushort4;
     CUtexref    cu_tex_uchar;
-    CUtexref    cu_tex_uchar2;
-    CUtexref    cu_tex_uchar4;
-    CUtexref    cu_tex_ushort;
-    CUtexref    cu_tex_ushort2;
-    CUtexref    cu_tex_ushort4;
 
     CUdeviceptr srcBuffer;
     CUdeviceptr dstBuffer;
-    int         tex_alignment;
-} CUDAScaleContext;
+};
 
-static av_cold int cudascale_init(AVFilterContext *ctx)
+static av_cold int cudareproject_init(AVFilterContext *ctx)
 {
-    CUDAScaleContext *s = ctx->priv;
+    CUDAReprojectContext *s = ctx->priv;
 
     s->format = AV_PIX_FMT_NONE;
     s->frame = av_frame_alloc();
@@ -113,16 +102,16 @@ static av_cold int cudascale_init(AVFilterContext *ctx)
     return 0;
 }
 
-static av_cold void cudascale_uninit(AVFilterContext *ctx)
+static av_cold void cudareproject_uninit(AVFilterContext *ctx)
 {
-    CUDAScaleContext *s = ctx->priv;
+    CUDAReprojectContext *s = ctx->priv;
 
     av_frame_free(&s->frame);
     av_buffer_unref(&s->frames_ctx);
     av_frame_free(&s->tmp_frame);
 }
 
-static int cudascale_query_formats(AVFilterContext *ctx)
+static int cudareproject_query_formats(AVFilterContext *ctx)
 {
     static const enum AVPixelFormat pixel_formats[] = {
         AV_PIX_FMT_CUDA, AV_PIX_FMT_NONE,
@@ -132,7 +121,7 @@ static int cudascale_query_formats(AVFilterContext *ctx)
     return ff_set_common_formats(ctx, pix_fmts);
 }
 
-static av_cold int init_stage(CUDAScaleContext *s, AVBufferRef *device_ctx)
+static av_cold int init_stage(CUDAReprojectContext *s, AVBufferRef *device_ctx)
 {
     AVBufferRef *out_ref = NULL;
     AVHWFramesContext *out_ctx;
@@ -199,7 +188,7 @@ static int format_is_supported(enum AVPixelFormat fmt)
 static av_cold int init_processing_chain(AVFilterContext *ctx, int in_width, int in_height,
                                          int out_width, int out_height)
 {
-    CUDAScaleContext *s = ctx->priv;
+    CUDAReprojectContext *s = ctx->priv;
 
     AVHWFramesContext *in_frames_ctx;
 
@@ -227,9 +216,6 @@ static av_cold int init_processing_chain(AVFilterContext *ctx, int in_width, int
         return AVERROR(ENOSYS);
     }
 
-    if (in_width == out_width && in_height == out_height)
-        s->passthrough = 1;
-
     s->in_fmt = in_format;
     s->out_fmt = out_format;
 
@@ -249,11 +235,11 @@ static av_cold int init_processing_chain(AVFilterContext *ctx, int in_width, int
     return 0;
 }
 
-static av_cold int cudascale_config_props(AVFilterLink *outlink)
+static av_cold int cudareproject_config_props(AVFilterLink *outlink)
 {
     AVFilterContext *ctx = outlink->src;
     AVFilterLink *inlink = outlink->src->inputs[0];
-    CUDAScaleContext *s  = ctx->priv;
+    CUDAReprojectContext *s  = ctx->priv;
     AVHWFramesContext     *frames_ctx = (AVHWFramesContext*)inlink->hw_frames_ctx->data;
     AVCUDADeviceContext *device_hwctx = frames_ctx->device_ctx->hwctx;
     CUcontext dummy, cuda_ctx = device_hwctx->cuda_ctx;
@@ -261,7 +247,7 @@ static av_cold int cudascale_config_props(AVFilterLink *outlink)
     int w, h;
     int ret;
 
-    extern char vf_scale_cuda_ptx[];
+    extern char vf_reproject_cuda_ptx[];
 
     err = cuCtxPushCurrent(cuda_ctx);
     if (err != CUDA_SUCCESS) {
@@ -270,41 +256,29 @@ static av_cold int cudascale_config_props(AVFilterLink *outlink)
         goto fail;
     }
 
-    err = cuModuleLoadData(&s->cu_module, vf_scale_cuda_ptx);
+    err = cuModuleLoadData(&s->cu_module, vf_reproject_cuda_ptx);
     if (err != CUDA_SUCCESS) {
         av_log(ctx, AV_LOG_ERROR, "Error loading module data\n");
         ret = AVERROR_UNKNOWN;
         goto fail;
     }
 
-    cuModuleGetFunction(&s->cu_func_uchar, s->cu_module, "Subsample_Bilinear_uchar");
-    cuModuleGetFunction(&s->cu_func_uchar2, s->cu_module, "Subsample_Bilinear_uchar2");
-    cuModuleGetFunction(&s->cu_func_uchar4, s->cu_module, "Subsample_Bilinear_uchar4");
-    cuModuleGetFunction(&s->cu_func_ushort, s->cu_module, "Subsample_Bilinear_ushort");
-    cuModuleGetFunction(&s->cu_func_ushort2, s->cu_module, "Subsample_Bilinear_ushort2");
-    cuModuleGetFunction(&s->cu_func_ushort4, s->cu_module, "Subsample_Bilinear_ushort4");
+    cuModuleGetFunction(&s->cu_func_uchar, s->cu_module, "Reproject_Fisheye_Equirect_uchar");
 
     cuModuleGetTexRef(&s->cu_tex_uchar, s->cu_module, "uchar_tex");
-    cuModuleGetTexRef(&s->cu_tex_uchar2, s->cu_module, "uchar2_tex");
-    cuModuleGetTexRef(&s->cu_tex_uchar4, s->cu_module, "uchar4_tex");
-    cuModuleGetTexRef(&s->cu_tex_ushort, s->cu_module, "ushort_tex");
-    cuModuleGetTexRef(&s->cu_tex_ushort2, s->cu_module, "ushort2_tex");
-    cuModuleGetTexRef(&s->cu_tex_ushort4, s->cu_module, "ushort4_tex");
 
-    cuTexRefSetFlags(s->cu_tex_uchar, CU_TRSF_READ_AS_INTEGER);
-    cuTexRefSetFlags(s->cu_tex_uchar2, CU_TRSF_READ_AS_INTEGER);
-    cuTexRefSetFlags(s->cu_tex_uchar4, CU_TRSF_READ_AS_INTEGER);
-    cuTexRefSetFlags(s->cu_tex_ushort, CU_TRSF_READ_AS_INTEGER);
-    cuTexRefSetFlags(s->cu_tex_ushort2, CU_TRSF_READ_AS_INTEGER);
-    cuTexRefSetFlags(s->cu_tex_ushort4, CU_TRSF_READ_AS_INTEGER);
+    // read values as float: no flag, but must add cudaReadModeNormalizedFloat to
+    //                       the texture specification
+    // read values as integer: CU_TRSF_READ_AS_INTEGER
+    //
+    // address cells by integer index: no flag
+    // address cells relative to width and height 1: CU_TRSF_NORMALIZED_COORDINATES
+    //
+    // filter mode can be CU_TR_FILTER_MODE_POINT or CU_TR_FILTER_MODE_LINEAR
+
+    cuTexRefSetFlags(s->cu_tex_uchar, CU_TRSF_NORMALIZED_COORDINATES);
 
     cuTexRefSetFilterMode(s->cu_tex_uchar, CU_TR_FILTER_MODE_LINEAR);
-    cuTexRefSetFilterMode(s->cu_tex_uchar2, CU_TR_FILTER_MODE_LINEAR);
-    cuTexRefSetFilterMode(s->cu_tex_uchar4, CU_TR_FILTER_MODE_LINEAR);
-    cuTexRefSetFilterMode(s->cu_tex_ushort, CU_TR_FILTER_MODE_LINEAR);
-    cuTexRefSetFilterMode(s->cu_tex_ushort2, CU_TR_FILTER_MODE_LINEAR);
-    cuTexRefSetFilterMode(s->cu_tex_ushort4, CU_TR_FILTER_MODE_LINEAR);
-
     cuCtxPopCurrent(&dummy);
 
     if ((ret = ff_scale_eval_dimensions(s,
@@ -341,110 +315,105 @@ fail:
     return ret;
 }
 
-static int call_resize_kernel(CUDAScaleContext *s, CUfunction func, CUtexref tex, int channels,
-                              uint8_t *src_dptr, int src_width, int src_height, int src_pitch,
-                              uint8_t *dst_dptr, int dst_width, int dst_height, int dst_pitch,
-                              int pixel_size)
+static int call_reproject_kernel(CUDAReprojectContext *s,
+                                 CUfunction func,
+                                 CUtexref tex,
+                                 uint8_t *src_dptr,
+                                 int src_width, int src_height, int src_pitch,
+                                 uint8_t *dst_dptr,
+                                 int dst_width, int dst_height, int dst_pitch )
 {
     CUdeviceptr src_devptr = (CUdeviceptr)src_dptr;
     CUdeviceptr dst_devptr = (CUdeviceptr)dst_dptr;
-    void *args_uchar[] = { &dst_devptr, &dst_width, &dst_height, &dst_pitch, &src_width, &src_height };
+    void *args_uchar[] = { &dst_devptr,
+                           &dst_width, &dst_height, &dst_pitch,
+                           &src_width, &src_height };
     CUDA_ARRAY_DESCRIPTOR desc;
 
-    desc.Width  = src_width;
-    desc.Height = src_height;
-    desc.NumChannels = channels;
-    if (pixel_size == 1) {
-        desc.Format = CU_AD_FORMAT_UNSIGNED_INT8;
-    } else {
-        desc.Format = CU_AD_FORMAT_UNSIGNED_INT16;
-    }
+    const int block_x = 32;
+    const int block_y = 16;
+    const int block_z = 1;
+    const int grid_x  = DIV_UP(dst_width,  block_x);
+    const int grid_y  = DIV_UP(dst_height, block_y);
+    const int grid_z  = 1;
 
-    cuTexRefSetAddress2D_v3(tex, &desc, src_devptr, src_pitch * pixel_size);
-    cuLaunchKernel(func, DIV_UP(dst_width, BLOCKX), DIV_UP(dst_height, BLOCKY), 1, BLOCKX, BLOCKY, 1, 0, 0, args_uchar, NULL);
+    desc.Width       = src_width;
+    desc.Height      = src_height;
+    desc.NumChannels = 1;
+    desc.Format      = CU_AD_FORMAT_UNSIGNED_INT8;
+
+    cuTexRefSetAddress2D_v3(tex, &desc, src_devptr, src_pitch);
+    cuLaunchKernel(func,
+                   grid_x, grid_y, grid_z,
+                   block_x, block_y, block_z,
+                   0, // shared mem bytes
+                   0, // stream ID
+                   args_uchar,
+                   NULL);
 
     return 0;
 }
 
-static int scalecuda_resize(AVFilterContext *ctx,
+static int reproject_frame_kernel_calls(AVFilterContext *ctx,
                             AVFrame *out, AVFrame *in)
 {
     AVHWFramesContext *in_frames_ctx = (AVHWFramesContext*)in->hw_frames_ctx->data;
-    CUDAScaleContext *s = ctx->priv;
+    CUDAReprojectContext *s = ctx->priv;
 
-    switch (in_frames_ctx->sw_format) {
-    case AV_PIX_FMT_YUV420P:
-        call_resize_kernel(s, s->cu_func_uchar, s->cu_tex_uchar, 1,
-                           in->data[0], in->width, in->height, in->linesize[0],
-                           out->data[0], out->width, out->height, out->linesize[0],
-                           1);
-        call_resize_kernel(s, s->cu_func_uchar, s->cu_tex_uchar, 1,
-                           in->data[0]+in->linesize[0]*in->height, in->width/2, in->height/2, in->linesize[0]/2,
-                           out->data[0]+out->linesize[0]*out->height, out->width/2, out->height/2, out->linesize[0]/2,
-                           1);
-        call_resize_kernel(s, s->cu_func_uchar, s->cu_tex_uchar, 1,
-                           in->data[0]+ ALIGN_UP((in->linesize[0]*in->height*5)/4, s->tex_alignment), in->width/2, in->height/2, in->linesize[0]/2,
-                           out->data[0]+(out->linesize[0]*out->height*5)/4, out->width/2, out->height/2, out->linesize[0]/2,
-                           1);
-        break;
-    case AV_PIX_FMT_YUV444P:
-        call_resize_kernel(s, s->cu_func_uchar, s->cu_tex_uchar, 1,
-                           in->data[0], in->width, in->height, in->linesize[0],
-                           out->data[0], out->width, out->height, out->linesize[0],
-                           1);
-        call_resize_kernel(s, s->cu_func_uchar, s->cu_tex_uchar, 1,
-                           in->data[0]+in->linesize[0]*in->height, in->width, in->height, in->linesize[0],
-                           out->data[0]+out->linesize[0]*out->height, out->width, out->height, out->linesize[0],
-                           1);
-        call_resize_kernel(s, s->cu_func_uchar, s->cu_tex_uchar, 1,
-                           in->data[0]+in->linesize[0]*in->height*2, in->width, in->height, in->linesize[0],
-                           out->data[0]+out->linesize[0]*out->height*2, out->width, out->height, out->linesize[0],
-                           1);
-        break;
-    case AV_PIX_FMT_NV12:
-        call_resize_kernel(s, s->cu_func_uchar, s->cu_tex_uchar, 1,
-                           in->data[0], in->width, in->height, in->linesize[0],
-                           out->data[0], out->width, out->height, out->linesize[0],
-                           1);
-        call_resize_kernel(s, s->cu_func_uchar2, s->cu_tex_uchar2, 2,
-                           in->data[1], in->width/2, in->height/2, in->linesize[1],
-                           out->data[0] + out->linesize[0] * ((out->height + 31) & ~0x1f), out->width/2, out->height/2, out->linesize[1]/2,
-                           1);
-        break;
-    case AV_PIX_FMT_P010LE:
-        call_resize_kernel(s, s->cu_func_ushort, s->cu_tex_ushort, 1,
-                           in->data[0], in->width, in->height, in->linesize[0]/2,
-                           out->data[0], out->width, out->height, out->linesize[0]/2,
-                           2);
-        call_resize_kernel(s, s->cu_func_ushort2, s->cu_tex_ushort2, 2,
-                           in->data[1], in->width / 2, in->height / 2, in->linesize[1]/2,
-                           out->data[0] + out->linesize[0] * ((out->height + 31) & ~0x1f), out->width / 2, out->height / 2, out->linesize[1] / 4,
-                           2);
-        break;
-    case AV_PIX_FMT_P016LE:
-        call_resize_kernel(s, s->cu_func_ushort, s->cu_tex_ushort, 1,
-                           in->data[0], in->width, in->height, in->linesize[0] / 2,
-                           out->data[0], out->width, out->height, out->linesize[0] / 2,
-                           2);
-        call_resize_kernel(s, s->cu_func_ushort2, s->cu_tex_ushort2, 2,
-                           in->data[1], in->width / 2, in->height / 2, in->linesize[1] / 2,
-                           out->data[0] + out->linesize[0] * ((out->height + 31) & ~0x1f), out->width / 2, out->height / 2, out->linesize[1] / 4,
-                           2);
-        break;
-    default:
-        return AVERROR_BUG;
+    if( in_frames_ctx->sw_format != AV_PIX_FMT_YUV420P )
+    {
+        av_log(ctx, AV_LOG_ERROR,
+               "Init check failed, received pixel format %s but accepting only %s\n",
+               av_get_pix_fmt_name(in_frames_ctx->sw_format),
+               av_get_pix_fmt_name(AV_PIX_FMT_YUV420P));
+        return AVERROR(ENOSYS);
     }
+
+    int      src_w     = in->width;
+    int      src_h     = in->height;
+    int      src_pitch = in->linesize[0];
+    uint8_t* src_data  = in->data[0];
+    int      dst_w     = out->width;
+    int      dst_h     = out->height;
+    int      dst_pitch = out->linesize[0];
+    uint8_t* dst_data  = out->data[0];
+
+    call_reproject_kernel(s,
+                          s->cu_func_uchar,
+                          s->cu_tex_uchar,
+                          src_data, src_w, src_h, src_pitch,
+                          dst_data, dst_w, dst_h, dst_pitch );
+
+    src_data = src_data + src_pitch * src_h;
+    dst_data = dst_data + dst_pitch * dst_h;
+    src_w /= 2;
+    src_h /= 2;
+    dst_w /= 2;
+    dst_h /= 2;
+    call_reproject_kernel(s,
+                          s->cu_func_uchar,
+                          s->cu_tex_uchar,
+                          src_data, src_w, src_h, src_pitch/2,
+                          dst_data, dst_w, dst_h, dst_pitch/2 );
+
+    src_data = src_data + src_pitch/2 * src_h;
+    dst_data = dst_data + dst_pitch/2 * dst_h;
+    call_reproject_kernel(s,
+                          s->cu_func_uchar,
+                          s->cu_tex_uchar,
+                          src_data, src_w, src_h, src_pitch/2,
+                          dst_data, dst_w, dst_h, dst_pitch/2 );
 
     return 0;
 }
 
-static int cudascale_scale(AVFilterContext *ctx, AVFrame *out, AVFrame *in)
+static int reproject_frame(AVFilterContext *ctx, AVFrame *out, AVFrame *in)
 {
-    CUDAScaleContext *s = ctx->priv;
+    CUDAReprojectContext *s = ctx->priv;
     AVFrame *src = in;
     int ret;
 
-    ret = scalecuda_resize(ctx, s->frame, src);
+    ret = reproject_frame_kernel_calls(ctx, s->frame, src);
     if (ret < 0)
         return ret;
 
@@ -463,10 +432,10 @@ static int cudascale_scale(AVFilterContext *ctx, AVFrame *out, AVFrame *in)
     return 0;
 }
 
-static int cudascale_filter_frame(AVFilterLink *link, AVFrame *in)
+static int cudareproject_filter_frame(AVFilterLink *link, AVFrame *in)
 {
     AVFilterContext              *ctx = link->dst;
-    CUDAScaleContext               *s = ctx->priv;
+    CUDAReprojectContext           *s = ctx->priv;
     AVFilterLink             *outlink = ctx->outputs[0];
     AVHWFramesContext     *frames_ctx = (AVHWFramesContext*)s->frames_ctx->data;
     AVCUDADeviceContext *device_hwctx = frames_ctx->device_ctx->hwctx;
@@ -488,12 +457,13 @@ static int cudascale_filter_frame(AVFilterLink *link, AVFrame *in)
         goto fail;
     }
 
-    ret = cudascale_scale(ctx, out, in);
+    ret = reproject_frame(ctx, out, in);
 
     cuCtxPopCurrent(&dummy);
     if (ret < 0)
         goto fail;
 
+    // griff: I have no idea what this is all about. Pixel stretch?
     av_reduce(&out->sample_aspect_ratio.num, &out->sample_aspect_ratio.den,
               (int64_t)in->sample_aspect_ratio.num * outlink->h * link->w,
               (int64_t)in->sample_aspect_ratio.den * outlink->w * link->h,
@@ -507,7 +477,7 @@ fail:
     return ret;
 }
 
-#define OFFSET(x) offsetof(CUDAScaleContext, x)
+#define OFFSET(x) offsetof(CUDAReprojectContext, x)
 #define FLAGS (AV_OPT_FLAG_FILTERING_PARAM|AV_OPT_FLAG_VIDEO_PARAM)
 static const AVOption options[] = {
     { "w",      "Output video width",  OFFSET(w_expr),     AV_OPT_TYPE_STRING, { .str = "iw"   }, .flags = FLAGS },
@@ -515,27 +485,27 @@ static const AVOption options[] = {
     { NULL },
 };
 
-static const AVClass cudascale_class = {
-    .class_name = "cudascale",
+static const AVClass cudareproject_class = {
+    .class_name = "cudareproject",
     .item_name  = av_default_item_name,
     .option     = options,
     .version    = LIBAVUTIL_VERSION_INT,
 };
 
-static const AVFilterPad cudascale_inputs[] = {
+static const AVFilterPad cudareproject_inputs[] = {
     {
-        .name        = "default",
-        .type        = AVMEDIA_TYPE_VIDEO,
-        .filter_frame = cudascale_filter_frame,
+        .name         = "default",
+        .type         = AVMEDIA_TYPE_VIDEO,
+        .filter_frame = cudareproject_filter_frame,
     },
     { NULL }
 };
 
-static const AVFilterPad cudascale_outputs[] = {
+static const AVFilterPad cudareproject_outputs[] = {
     {
         .name         = "default",
         .type         = AVMEDIA_TYPE_VIDEO,
-        .config_props = cudascale_config_props,
+        .config_props = cudareproject_config_props,
     },
     { NULL }
 };
@@ -544,15 +514,16 @@ AVFilter ff_vf_reproject_cuda = {
     .name      = "reproject_cuda",
     .description = NULL_IF_CONFIG_SMALL("GPU-accelerated video reprojection"),
 
-    .init          = cudascale_init,
-    .uninit        = cudascale_uninit,
-    .query_formats = cudascale_query_formats,
+    .init          = cudareproject_init,
+    .uninit        = cudareproject_uninit,
+    .query_formats = cudareproject_query_formats,
 
-    .priv_size = sizeof(CUDAScaleContext),
-    .priv_class = &cudascale_class,
+    .priv_size = sizeof(CUDAReprojectContext),
+    .priv_class = &cudareproject_class,
 
-    .inputs    = cudascale_inputs,
-    .outputs   = cudascale_outputs,
+    .inputs    = cudareproject_inputs,
+    .outputs   = cudareproject_outputs,
 
     .flags_internal = FF_FILTER_FLAG_HWFRAME_AWARE,
 };
+
