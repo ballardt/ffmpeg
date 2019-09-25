@@ -75,6 +75,7 @@ struct CUDAReprojectContext
 
     char *w_expr;               ///< width  expression string
     char *h_expr;               ///< height expression string
+    char *type_expr;            ///< type   epxression string: floor, ceil or face
 
     CUcontext   cu_ctx;
     CUevent     cu_event;
@@ -263,7 +264,14 @@ static av_cold int cudareproject_config_props(AVFilterLink *outlink)
         goto fail;
     }
 
-    cuModuleGetFunction(&s->cu_func_uchar, s->cu_module, "Reproject_Fisheye_Equirect_uchar");
+    if( strncmp( s->type_expr, "face", 5 ) == 0 )
+    {
+        cuModuleGetFunction(&s->cu_func_uchar, s->cu_module, "Reproject_Fisheye_Equirect_Face_uchar");
+    }
+    else
+    {
+        cuModuleGetFunction(&s->cu_func_uchar, s->cu_module, "Reproject_Fisheye_Equirect_Floor_uchar");
+    }
 
     cuModuleGetTexRef(&s->cu_tex_uchar, s->cu_module, "uchar_tex");
 
@@ -482,6 +490,7 @@ fail:
 static const AVOption options[] = {
     { "w",      "Output video width",  OFFSET(w_expr),     AV_OPT_TYPE_STRING, { .str = "iw"   }, .flags = FLAGS },
     { "h",      "Output video height", OFFSET(h_expr),     AV_OPT_TYPE_STRING, { .str = "ih"   }, .flags = FLAGS },
+    { "type",   "Values: floor, ceil or face", OFFSET(type_expr), AV_OPT_TYPE_STRING, { .str = "floor"   }, .flags = FLAGS },
     { NULL },
 };
 
