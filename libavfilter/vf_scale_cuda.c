@@ -372,18 +372,40 @@ static int scalecuda_resize(AVFilterContext *ctx,
 
     switch (in_frames_ctx->sw_format) {
     case AV_PIX_FMT_YUV420P:
-        call_resize_kernel(s, s->cu_func_uchar, s->cu_tex_uchar, 1,
-                           in->data[0], in->width, in->height, in->linesize[0],
-                           out->data[0], out->width, out->height, out->linesize[0],
-                           1);
-        call_resize_kernel(s, s->cu_func_uchar, s->cu_tex_uchar, 1,
-                           in->data[0]+in->linesize[0]*in->height, in->width/2, in->height/2, in->linesize[0]/2,
-                           out->data[0]+out->linesize[0]*out->height, out->width/2, out->height/2, out->linesize[0]/2,
-                           1);
-        call_resize_kernel(s, s->cu_func_uchar, s->cu_tex_uchar, 1,
-                           in->data[0]+ ALIGN_UP((in->linesize[0]*in->height*5)/4, s->tex_alignment), in->width/2, in->height/2, in->linesize[0]/2,
-                           out->data[0]+(out->linesize[0]*out->height*5)/4, out->width/2, out->height/2, out->linesize[0]/2,
-                           1);
+        {
+            uint8_t* src_data  = in->data[0];
+            uint8_t* dst_data  = out->data[0];
+            int      src_w     = in->width;
+            int      src_h     = in->height;
+            int      dst_w     = out->width;
+            int      dst_h     = out->height;
+            int      src_pitch = in->linesize[0];
+            int      dst_pitch = out->linesize[0];
+            call_resize_kernel(s, s->cu_func_uchar, s->cu_tex_uchar, 1,
+                            src_data, src_w, src_h, src_pitch,
+                            dst_data, dst_w, dst_h, dst_pitch,
+                            1);
+
+            src_data = src_data + src_pitch * src_h;
+            dst_data = dst_data + dst_pitch * dst_h;
+            src_w /= 2;
+            src_h /= 2;
+            dst_w /= 2;
+            dst_h /= 2;
+            src_pitch /= 2;
+            dst_pitch /= 2;
+            call_resize_kernel(s, s->cu_func_uchar, s->cu_tex_uchar, 1,
+                            src_data, src_w, src_h, src_pitch,
+                            dst_data, dst_w, dst_h, dst_pitch,
+                            1);
+
+            src_data = src_data + src_pitch * src_h;
+            dst_data = dst_data + dst_pitch * dst_h;
+            call_resize_kernel(s, s->cu_func_uchar, s->cu_tex_uchar, 1,
+                            src_data, src_w, src_h, src_pitch,
+                            dst_data, dst_w, dst_h, dst_pitch,
+                            1);
+        }
         break;
     case AV_PIX_FMT_YUV444P:
         call_resize_kernel(s, s->cu_func_uchar, s->cu_tex_uchar, 1,
