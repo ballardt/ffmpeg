@@ -58,6 +58,9 @@ __global__ void Reproject_Fisheye_Equirect_Floor_uchar(unsigned char *dst,
         float xi = xo / (float)dst_width;
         float yi = yo / (float)dst_height;
 
+        // flip the direction for xi
+        xi = 1.0f - xi;
+
         // we keep Y unchanged
         // we stretch X
         xi = 2.0f * CUDART_PI_F * xi; // xi is now between [-PI/2 and PI/2]
