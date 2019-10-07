@@ -76,6 +76,9 @@ struct CUDAReprojectContext
     char *w_expr;               ///< width  expression string
     char *h_expr;               ///< height expression string
     char *type_expr;            ///< type   epxression string: floor, ceil or face
+    float fraction_expr;
+
+    int   is_ceiling;
 
     CUcontext   cu_ctx;
     CUevent     cu_event;
@@ -264,13 +267,21 @@ static av_cold int cudareproject_config_props(AVFilterLink *outlink)
         goto fail;
     }
 
-    if( strncmp( s->type_expr, "face", 5 ) == 0 )
+    if( strncmp( s->type_expr, "face", 4 ) == 0 )
     {
         cuModuleGetFunction(&s->cu_func_uchar, s->cu_module, "Reproject_Fisheye_Equirect_Face_uchar");
     }
     else
     {
         cuModuleGetFunction(&s->cu_func_uchar, s->cu_module, "Reproject_Fisheye_Equirect_Floor_uchar");
+        if( strncmp( s->type_expr, "ceil", 4 ) == 0 )
+        {
+            s->is_ceiling = 1;
+        }
+        else
+        {
+            s->is_ceiling = 0;
+        }
     }
 
     cuModuleGetTexRef(&s->cu_tex_uchar, s->cu_module, "uchar_tex");
@@ -329,13 +340,17 @@ static int call_reproject_kernel(CUDAReprojectContext *s,
                                  uint8_t *src_dptr,
                                  int src_width, int src_height, int src_pitch,
                                  uint8_t *dst_dptr,
-                                 int dst_width, int dst_height, int dst_pitch )
+                                 int dst_width, int dst_height, int dst_pitch,
+                                 float invisible_fraction,
+                                 int   is_ceiling )
 {
     CUdeviceptr src_devptr = (CUdeviceptr)src_dptr;
     CUdeviceptr dst_devptr = (CUdeviceptr)dst_dptr;
     void *args_uchar[] = { &dst_devptr,
                            &dst_width, &dst_height, &dst_pitch,
-                           &src_width, &src_height };
+                           &src_width, &src_height,
+                           &invisible_fraction,
+                           &is_ceiling };
     CUDA_ARRAY_DESCRIPTOR desc;
 
     const int block_x = 32;
@@ -367,6 +382,10 @@ static int reproject_frame_kernel_calls(AVFilterContext *ctx,
 {
     AVHWFramesContext *in_frames_ctx = (AVHWFramesContext*)in->hw_frames_ctx->data;
     CUDAReprojectContext *s = ctx->priv;
+    int      src_w, src_h, dst_w, dst_h;
+    int      src_pitch, dst_pitch;
+    uint8_t* src_data;
+    uint8_t* dst_data;
 
     if( in_frames_ctx->sw_format != AV_PIX_FMT_YUV420P )
     {
@@ -377,20 +396,21 @@ static int reproject_frame_kernel_calls(AVFilterContext *ctx,
         return AVERROR(ENOSYS);
     }
 
-    int      src_w     = in->width;
-    int      src_h     = in->height;
-    int      src_pitch = in->linesize[0];
-    uint8_t* src_data  = in->data[0];
-    int      dst_w     = out->width;
-    int      dst_h     = out->height;
-    int      dst_pitch = out->linesize[0];
-    uint8_t* dst_data  = out->data[0];
+    src_w     = in->width;
+    src_h     = in->height;
+    src_pitch = in->linesize[0];
+    src_data  = in->data[0];
+    dst_w     = out->width;
+    dst_h     = out->height;
+    dst_pitch = out->linesize[0];
+    dst_data  = out->data[0];
 
     call_reproject_kernel(s,
                           s->cu_func_uchar,
                           s->cu_tex_uchar,
                           src_data, src_w, src_h, src_pitch,
-                          dst_data, dst_w, dst_h, dst_pitch );
+                          dst_data, dst_w, dst_h, dst_pitch,
+                          s->fraction_expr, s->is_ceiling );
 
     src_data = src_data + src_pitch * src_h;
     dst_data = dst_data + dst_pitch * dst_h;
@@ -402,7 +422,8 @@ static int reproject_frame_kernel_calls(AVFilterContext *ctx,
                           s->cu_func_uchar,
                           s->cu_tex_uchar,
                           src_data, src_w, src_h, src_pitch/2,
-                          dst_data, dst_w, dst_h, dst_pitch/2 );
+                          dst_data, dst_w, dst_h, dst_pitch/2,
+                          s->fraction_expr, s->is_ceiling );
 
     src_data = src_data + src_pitch/2 * src_h;
     dst_data = dst_data + dst_pitch/2 * dst_h;
@@ -410,7 +431,8 @@ static int reproject_frame_kernel_calls(AVFilterContext *ctx,
                           s->cu_func_uchar,
                           s->cu_tex_uchar,
                           src_data, src_w, src_h, src_pitch/2,
-                          dst_data, dst_w, dst_h, dst_pitch/2 );
+                          dst_data, dst_w, dst_h, dst_pitch/2,
+                          s->fraction_expr, s->is_ceiling );
 
     return 0;
 }
@@ -426,12 +448,12 @@ static int reproject_frame(AVFilterContext *ctx, AVFrame *out, AVFrame *in)
         return ret;
 
     src = s->frame;
-    ret = av_hwframe_get_buffer(src->hw_frames_ctx, s->tmp_frame, 0);
+    ret = av_hwframe_get_buffer(src->hw_frames_ctx, s->tmp_frame, 0); // allocate new buffers in s->tmp_frame
     if (ret < 0)
         return ret;
 
-    av_frame_move_ref(out, s->frame);
-    av_frame_move_ref(s->frame, s->tmp_frame);
+    av_frame_move_ref(out, s->frame);           // move everything in s->frame to out, s->frame becomes empty
+    av_frame_move_ref(s->frame, s->tmp_frame);  // move everything from s->tmp_frame to s->frame
 
     ret = av_frame_copy_props(out, in);
     if (ret < 0)
@@ -491,6 +513,7 @@ static const AVOption options[] = {
     { "w",      "Output video width",  OFFSET(w_expr),     AV_OPT_TYPE_STRING, { .str = "iw"   }, .flags = FLAGS },
     { "h",      "Output video height", OFFSET(h_expr),     AV_OPT_TYPE_STRING, { .str = "ih"   }, .flags = FLAGS },
     { "type",   "Values: floor, ceil or face", OFFSET(type_expr), AV_OPT_TYPE_STRING, { .str = "floor"   }, .flags = FLAGS },
+    { "frac",   "Invisible fraction for floor and ceil mapping ", OFFSET(fraction_expr), AV_OPT_TYPE_FLOAT, { .dbl = 0.0  }, 0.0, 100.0, .flags = FLAGS },
     { NULL },
 };
 

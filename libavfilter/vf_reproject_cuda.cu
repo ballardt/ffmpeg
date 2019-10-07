@@ -25,7 +25,7 @@ extern "C" {
 
 texture<unsigned char, cudaTextureType2D, cudaReadModeNormalizedFloat> uchar_tex;
 
-__device__ inline void panomorpth_stretch( float& x, float& y )
+__device__ inline void panomorph_stretch( float& x, float& y )
 {
     float len = sqrtf(x*x+y*y);
 
@@ -48,15 +48,19 @@ __device__ inline void pix_from_angle( float& xi, float& yi )
 
 __global__ void Reproject_Fisheye_Equirect_Floor_uchar(unsigned char *dst,
                                     int dst_width, int dst_height, int dst_pitch,
-                                    int src_width, int src_height)
+                                    int src_width, int src_height,
+                                    float invisible_fraction,
+                                    int   is_ceiling )
 {
     int xo = blockIdx.x * blockDim.x + threadIdx.x;
     int yo = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (yo < dst_height && xo < dst_width)
+    int limit = dst_height - (int)( dst_height * invisible_fraction );
+
+    if (yo < limit && xo < dst_width)
     {
         float xi = xo / (float)dst_width;
-        float yi = yo / (float)dst_height;
+        float yi = yo / (float)limit;
 
         // flip the direction for xi
         xi = 1.0f - xi;
@@ -74,22 +78,30 @@ __global__ void Reproject_Fisheye_Equirect_Floor_uchar(unsigned char *dst,
         // very far above the equator. We are probably not stretching correctly ...
 
         // float stretch = sqrtf( 0.90f - yi*yi );
-
         // xi *= stretch;
 
         xi = ( xi + 1.0f ) / 2.0f; // xf now between [ 0 and 1 ]
         yi = ( yi + 1.0f ) / 2.0f; // xf now between [ 0 and 1 ]
 
-        // panomorpth_stretch(xi,yi);
+        // panomorph_stretch(xi,yi);
 
         float y = tex2D(uchar_tex, xi, yi);
+
+        if( is_ceiling ) yo = dst_height - yo;
         dst[yo*dst_pitch+xo] = (unsigned char)(y*255.0f);
+    }
+    else if( yo < dst_height && xo < dst_width )
+    {
+        if( is_ceiling ) yo = dst_height - yo;
+        dst[yo*dst_pitch+xo] = 128;
     }
 }
 
 __global__ void Reproject_Fisheye_Equirect_Face_uchar(unsigned char *dst,
                                     int dst_width, int dst_height, int dst_pitch,
-                                    int src_width, int src_height)
+                                    int src_width, int src_height,
+                                    float /* ignored */,
+                                    int   /* ignored */ )
 {
     int xo = blockIdx.x * blockDim.x + threadIdx.x;
     int yo = blockIdx.y * blockDim.y + threadIdx.y;
