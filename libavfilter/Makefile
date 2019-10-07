@@ -325,6 +325,7 @@ OBJS-$(CONFIG_SAB_FILTER)                    += vf_sab.o
 OBJS-$(CONFIG_SCALE_FILTER)                  += vf_scale.o scale.o
 OBJS-$(CONFIG_SCALE_CUDA_FILTER)             += vf_scale_cuda.o vf_scale_cuda.ptx.o
 OBJS-$(CONFIG_REPROJECT_CUDA_FILTER)         += vf_reproject_cuda.o vf_reproject_cuda.ptx.o
+OBJS-$(CONFIG_GAUSS_CUDA_FILTER)             += vf_gauss_cuda.o vf_gauss_cuda.ptx.o
 OBJS-$(CONFIG_SCALE_NPP_FILTER)              += vf_scale_npp.o scale.o
 OBJS-$(CONFIG_SCALE_QSV_FILTER)              += vf_scale_qsv.o
 OBJS-$(CONFIG_SCALE_VAAPI_FILTER)            += vf_scale_vaapi.o scale.o vaapi_vpp.o
